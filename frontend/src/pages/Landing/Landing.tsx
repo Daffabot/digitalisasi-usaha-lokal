@@ -15,56 +15,39 @@ const Landing: React.FC = () => {
 
       <nav className="w-full p-6 flex justify-between items-center z-10">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-linear-to-tr from-accentblue to-accentpink flex items-center justify-center text-white font-yuruka text-sm shadow-md">
-            D
-          </div>
+          <div className="w-8 h-8 rounded-lg bg-linear-to-tr from-accentblue to-accentpink flex items-center justify-center text-white font-yuruka text-sm shadow-md">D</div>
           <span className="font-yuruka text-xl dark:text-white">DULO</span>
         </div>
-        <CuteButton
-          variant="ghost"
-          size="sm"
-          onClick={() => navigate("/settings")}
-        >
+
+        {/* MODIFIKASI 1: Tombol Login mengarah ke /login */}
+        <CuteButton variant="ghost" size="sm" onClick={() => navigate("/login")}>
           Login
         </CuteButton>
       </nav>
 
       <main className="flex-1 flex flex-col items-center justify-center px-6 text-center z-10 max-w-4xl mx-auto w-full">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-        >
-          <span className="inline-block px-4 py-1.5 rounded-full bg-accentblue/10 text-accentblue text-sm font-bold mb-6 border border-accentblue/20">
-            Version 2.0 Now Live 🚀
-          </span>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}>
+          <span className="inline-block px-4 py-1.5 rounded-full bg-accentblue/10 text-accentblue text-sm font-bold mb-6 border border-accentblue/20">Version 2.0 Now Live 🚀</span>
           <h1 className="text-5xl md:text-7xl font-yuruka text-neutral-900 dark:text-white leading-tight mb-6">
             Digitize your <br />
-            <span className="text-transparent bg-clip-text bg-linear-to-r from-accentblue to-accentpink">
-              Local Business
-            </span>
+            <span className="text-transparent bg-clip-text bg-linear-to-r from-accentblue to-accentpink">Local Business</span>
           </h1>
-          <p className="text-lg text-neutral-500 dark:text-neutral-400 max-w-lg mx-auto mb-10">
-            The cutest way to scan documents, manage records, and organize your
-            small business. Simple, fast, and friendly.
-          </p>
+          <p className="text-lg text-neutral-500 dark:text-neutral-400 max-w-lg mx-auto mb-10">The cutest way to scan documents, manage records, and organize your small business. Simple, fast, and friendly.</p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center w-full sm:w-auto">
-            <CuteButton size="lg" onClick={() => navigate("/home")}>
+            {/* MODIFIKASI 2: Tombol Start Now mengarah ke /login (atau /register) */}
+            <CuteButton size="lg" onClick={() => navigate("/login")}>
               Start Now <ArrowRight size={20} />
             </CuteButton>
+
+            {/* Tombol Learn More bisa dibiarkan atau diarahkan nanti */}
             <CuteButton variant="secondary" size="lg">
               Learn More
             </CuteButton>
           </div>
         </motion.div>
 
-        <motion.div
-          className="mt-16 relative w-full max-w-2xl"
-          initial={{ opacity: 0, y: 50 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4, duration: 0.8 }}
-        >
+        <motion.div className="mt-16 relative w-full max-w-2xl" initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4, duration: 0.8 }}>
           {/* Placeholder Illustration */}
           <motion.img
             src="https://placehold.co/800x400/FF74C8/white?text=Digitalisasi+Usaha+Lokal&font=Poppins"
@@ -75,19 +58,13 @@ const Landing: React.FC = () => {
           />
 
           {/* Floating badges */}
-          <motion.div
-            className="absolute -left-4 top-10 bg-white dark:bg-neutral-800 p-3 rounded-2xl shadow-lg flex items-center gap-3"
-            animate={{ x: [0, 10, 0] }}
-            transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
-          >
+          <motion.div className="absolute -left-4 top-10 bg-white dark:bg-neutral-800 p-3 rounded-2xl shadow-lg flex items-center gap-3" animate={{ x: [0, 10, 0] }} transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}>
             <div className="p-2 bg-blue-100 text-accentblue rounded-xl">
               <Zap size={20} />
             </div>
             <div className="text-left">
               <p className="text-xs text-neutral-400">Speed</p>
-              <p className="text-sm font-bold dark:text-white">
-                Lightning Fast
-              </p>
+              <p className="text-sm font-bold dark:text-white">Lightning Fast</p>
             </div>
           </motion.div>
 
