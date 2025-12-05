@@ -43,15 +43,17 @@ const Settings = () => {
               <p className="text-neutral-500 text-sm">Free Plan</p>
             </div>
           </div>
-          <Button className="text-primary font-yuruka text-sm font-bold">Edit</Button>
+          <Button className="text-primary font-yuruka text-sm font-bold">
+            Edit
+          </Button>
         </CuteCard>
       </CuteSection>
 
       <CuteSection delay={0.1}>
-        <h2 className="text-sm font-bold text-neutral-400 uppercase tracking-wider mb-3 px-2">
+        <h2 className="text-sm font-bold text-neutral-400 uppercase tracking-wider px-2">
           Appearance
         </h2>
-        <CuteCard className="p-2">
+        <CuteCard className="p-2 mt-3">
           <div className="flex items-center justify-between p-3">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl">
@@ -76,10 +78,10 @@ const Settings = () => {
 
       {settingSections.map((section, idx) => (
         <CuteSection key={section.title} delay={0.2 + idx * 0.1}>
-          <h2 className="text-sm font-bold text-neutral-400 uppercase tracking-wider mb-3 px-2">
+          <h2 className="text-sm font-bold text-neutral-400 uppercase tracking-wider px-2">
             {section.title}
           </h2>
-          <CuteCard className="p-0 overflow-hidden">
+          <CuteCard className="p-0 overflow-hidden mt-3">
             {section.items.map((item, i) => (
               <div
                 key={item}
