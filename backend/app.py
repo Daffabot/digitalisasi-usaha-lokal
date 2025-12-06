@@ -12,38 +12,58 @@ from config import (
 )
 from routes import register_blueprints
 from ml.ocr import load_ocr_model, test_paddle_ocr
-from models import get_db
+from models import init_pg_pool, get_db_connection
 from services.worker import start_worker
 from services.scheduler import start_scheduler, shutdown_scheduler
 
 
 def init_db():
     """Initialize database - ensure tables exist"""
-    conn = get_db()
-    cursor = conn.cursor()
+    from config import DATABASE_TYPE
     
-    # Create users table if not exists
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            full_name TEXT NOT NULL,
-            username TEXT UNIQUE NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            is_verified INTEGER DEFAULT 0,
-            verification_token TEXT,
-            verification_token_expires REAL,
-            created_at REAL NOT NULL,
-            updated_at REAL NOT NULL
-        )
-    ''')
+    if DATABASE_TYPE == "postgresql":
+        print("Using PostgreSQL database")
+        # Initialize connection pool
+        init_pg_pool()
+        # Test the connection
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1")
+            print("PostgreSQL connection successful")
+    else:
+        print("Using SQLite database")
+        # For SQLite, create database file if not exists
+        import os
+        from config import DATABASE_PATH
+        db_dir = os.path.dirname(DATABASE_PATH)
+        if db_dir and not os.path.exists(db_dir):
+            os.makedirs(db_dir)
+            print(f"Created database directory: {db_dir}")
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Create users table if not exists
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    full_name TEXT NOT NULL,
+                    username TEXT UNIQUE NOT NULL,
+                    email TEXT UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    is_verified INTEGER DEFAULT 0,
+                    verification_token TEXT,
+                    verification_token_expires REAL,
+                    created_at REAL NOT NULL,
+                    updated_at REAL NOT NULL
+                )
+            ''')
+            
+            # Create indexes
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_users_verification_token ON users(verification_token)')
     
-    # Create indexes
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_users_verification_token ON users(verification_token)')
-    
-    conn.commit()
     print("Database initialized successfully")
 
 

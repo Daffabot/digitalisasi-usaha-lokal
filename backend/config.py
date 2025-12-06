@@ -40,7 +40,16 @@ JWT_REFRESH_TOKEN_EXPIRES = 60 * 60 * 24 * 30  # 1 month
 JWT_EMAIL_TOKEN_EXPIRES = 3600  # 1 hour for email verification
 
 # Database Configuration
-DATABASE_PATH = os.getenv("DATABASE_PATH", "database/database.db")
+DATABASE_TYPE = os.getenv("DATABASE_TYPE", "sqlite")  # sqlite or postgresql
+DATABASE_PATH = os.getenv("DATABASE_PATH", "database/database.db")  # for SQLite
+
+# PostgreSQL Configuration
+POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
+POSTGRES_PORT = int(os.getenv("POSTGRES_PORT", 5432))
+POSTGRES_USER = os.getenv("POSTGRES_USER", "postgres")
+POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "")
+POSTGRES_DB = os.getenv("POSTGRES_DB", "excel_pdf_db")
+POSTGRES_SSLMODE = os.getenv("POSTGRES_SSLMODE", "require")
 
 # Resend Configuration for Email
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
