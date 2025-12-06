@@ -35,7 +35,7 @@ def get_current_job():
     return CURRENT_JOB
 
 
-def create_job(job_type, images, webhook=None, use_enhanced=False, ocr_options=None):
+def create_job(job_type, images, webhook=None, use_enhanced=False, ocr_options=None, user_id=None, file_type="excel"):
     """
     Create a new OCR job
     
@@ -45,6 +45,8 @@ def create_job(job_type, images, webhook=None, use_enhanced=False, ocr_options=N
         webhook: Optional webhook URL for completion notification
         use_enhanced: Whether to use enhanced OCR mode
         ocr_options: Optional OCR configuration options
+        user_id: ID of the user who created the job
+        file_type: Output file type ('excel' or 'pdf')
     
     Returns:
         Tuple of (job_id, position, eta) or (None, None, None) if queue is full
@@ -62,12 +64,16 @@ def create_job(job_type, images, webhook=None, use_enhanced=False, ocr_options=N
             "images": images,
             "status": "queued",
             "result": None,
+            "file_path": None,
+            "file_type": file_type,
+            "chat_id": None,  # Add chat_id field for AI formatting conversation
             "total_images": total_img,
             "processed": 0,
             "webhook": webhook,
             "use_enhanced": use_enhanced,
             "ocr_options": ocr_options or {},
-            "created_at": time.time()
+            "created_at": time.time(),
+            "user_id": user_id
         }
         
         jobs[job_id] = job_data

@@ -128,4 +128,3 @@ def test_paddle_ocr():
     except Exception as e:
         print(f"Test failed: {str(e)}")
         return False
-

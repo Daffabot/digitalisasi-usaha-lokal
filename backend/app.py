@@ -11,9 +11,40 @@ from config import (
     RATE_LIMIT_DEFAULT, RATE_LIMIT_BATCH, RATE_LIMIT_DIRECT
 )
 from routes import register_blueprints
-from models.ocr import load_ocr_model, test_paddle_ocr
+from ml.ocr import load_ocr_model, test_paddle_ocr
+from models import get_db
 from services.worker import start_worker
 from services.scheduler import start_scheduler, shutdown_scheduler
+
+
+def init_db():
+    """Initialize database - ensure tables exist"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # Create users table if not exists
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            full_name TEXT NOT NULL,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            is_verified INTEGER DEFAULT 0,
+            verification_token TEXT,
+            verification_token_expires REAL,
+            created_at REAL NOT NULL,
+            updated_at REAL NOT NULL
+        )
+    ''')
+    
+    # Create indexes
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_users_verification_token ON users(verification_token)')
+    
+    conn.commit()
+    print("Database initialized successfully")
 
 
 def create_app():
@@ -59,19 +90,28 @@ def print_startup_info():
     print("\n" + "=" * 50)
     print("PaddleOCR API Server")
     print("=" * 50)
-    print(f"Endpoints:")
+    print(f"Authentication Endpoints:")
+    print(f"  POST /auth/register       - Register new user")
+    print(f"  POST /auth/login          - Login (get JWT token)")
+    print(f"  GET  /auth/verify-email   - Verify email")
+    print(f"  POST /auth/resend-verification - Resend verification email")
+    print(f"\nProtected OCR Endpoints (requires JWT):")
     print(f"  POST /ocr            - Single image OCR with queue")
     print(f"  POST /ocr/batch      - Batch image OCR with queue")
     print(f"  GET  /take/<job_id>  - Get job results")
+    print(f"  POST /ocr/direct     - Direct OCR (no queue)")
+    print(f"\nPublic Endpoints:")
     print(f"  GET  /stats          - Server statistics")
     print(f"  GET  /health         - Health check")
-    print(f"  POST /ocr/direct     - Direct OCR (no queue)")
     print("=" * 50 + "\n")
 
 
 def main():
     """Main entry point"""
     try:
+        # Initialize database
+        init_db()
+        
         # Load OCR model
         load_ocr_model()
         
