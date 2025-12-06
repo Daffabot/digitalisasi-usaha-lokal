@@ -105,6 +105,8 @@ def print_startup_info():
     print(f"  GET  /health         - Health check")
     print("=" * 50 + "\n")
 
+# Create Flask app
+app = create_app()
 
 def main():
     """Main entry point"""
@@ -117,9 +119,6 @@ def main():
         
         # Test OCR
         test_paddle_ocr()
-        
-        # Create Flask app
-        app = create_app()
         
         # Start background services
         start_worker()
