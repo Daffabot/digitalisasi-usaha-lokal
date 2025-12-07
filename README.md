@@ -77,6 +77,12 @@ Make sure you have the following installed:
 - **Docker** (20.10 or higher)
 - **Docker Compose** (v2.0 or higher)
 
+### Test Login
+
+- username: admin
+- email: admin@example.com
+- password: Admin123!
+
 ### Installation & Running
 
 #### Option 1: Using Docker Compose (Recommended)
