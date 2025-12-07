@@ -1,19 +1,76 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getStoredUser } from "../../services/authService";
-import { UploadCloud, FileClock, ChevronRight, Plus } from "lucide-react";
+import { ChevronRight, FileClock, Plus, MessageSquare } from "lucide-react";
 import CuteCard from "../../components/ui/CuteCard";
 import CuteButton from "../../components/ui/CuteButton";
 import CuteSection from "../../components/ui/CuteSection";
+import { getChatHistory } from "../../services/chatService";
 
 const Home: React.FC = () => {
   const navigate = useNavigate();
 
-  const recentDocs = [
-    { id: 1, name: "Invoice_Mar_001.pdf", date: "2 mins ago", size: "1.2 MB" },
-    { id: 2, name: "Contract_Vendor_A.jpg", date: "Yesterday", size: "3.4 MB" },
-    { id: 3, name: "Receipt_Lunch.png", date: "2 days ago", size: "0.8 MB" },
-  ];
+  type ChatItem = {
+    chat_id?: string;
+    id?: string | number;
+    _id?: string;
+    title?: string;
+    created_at?: number | string;
+    updated_at?: number | string;
+  };
+
+  const [chats, setChats] = useState<ChatItem[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  function toDateFromMaybeEpoch(v?: number | string) {
+    if (v === undefined || v === null) return null;
+    if (typeof v === "number") {
+      return v > 1e12 ? new Date(v) : new Date(v * 1000);
+    }
+    const n = Number(v);
+    if (!Number.isNaN(n)) {
+      return n > 1e12 ? new Date(n) : new Date(n * 1000);
+    }
+    const d = new Date(String(v));
+    if (Number.isNaN(d.getTime())) return null;
+    return d;
+  }
+
+  function isSameDayAsToday(ts?: number | string) {
+    const d = toDateFromMaybeEpoch(ts);
+    if (!d) return false;
+    const today = new Date();
+    return (
+      d.getFullYear() === today.getFullYear() &&
+      d.getMonth() === today.getMonth() &&
+      d.getDate() === today.getDate()
+    );
+  }
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await getChatHistory();
+        if (!mounted) return;
+        const resp = res as unknown;
+        const asRecord = resp && typeof resp === "object" ? (resp as Record<string, unknown>) : null;
+        const items: ChatItem[] = asRecord && Array.isArray(asRecord.chats)
+          ? (asRecord.chats as ChatItem[])
+          : Array.isArray(resp)
+          ? (resp as ChatItem[])
+          : [];
+        setChats(items);
+      } catch (err) {
+        console.error("Failed to load recent chats", err);
+        setChats([]);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   const stored = getStoredUser();
   const displayName =
@@ -40,11 +97,11 @@ const Home: React.FC = () => {
           <CuteCard className="bg-linear-to-br from-accentblue to-blue-400 text-white border-none">
             <div className="flex flex-col h-full justify-between">
               <div className="p-3 bg-white/20 w-fit rounded-xl mb-4">
-                <UploadCloud size={24} />
+                <MessageSquare size={24} />
               </div>
               <div>
-                <p className="text-blue-100 text-sm mb-1">Total Uploads</p>
-                <h3 className="text-3xl font-yuruka">1,248</h3>
+                <p className="text-blue-100 text-sm mb-1">Total Chats</p>
+                <h3 className="text-3xl font-yuruka">{(chats?.length ?? 0).toLocaleString()}</h3>
               </div>
             </div>
           </CuteCard>
@@ -55,8 +112,8 @@ const Home: React.FC = () => {
                 <FileClock size={24} />
               </div>
               <div>
-                <p className="text-pink-100 text-sm mb-1">Pending Review</p>
-                <h3 className="text-3xl font-yuruka">12</h3>
+                <p className="text-pink-100 text-sm mb-1">Total Chats Today</p>
+                <h3 className="text-3xl font-yuruka">{(chats || []).filter(c => isSameDayAsToday(c.created_at || c.updated_at)).length.toLocaleString()}</h3>
               </div>
             </div>
           </CuteCard>
@@ -78,7 +135,7 @@ const Home: React.FC = () => {
       <CuteSection delay={0.2}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-yuruka text-neutral-800 dark:text-white">
-            Recent Documents
+            Recent Chats
           </h2>
           <button
             className="text-accentblue text-sm font-bold hover:underline"
@@ -89,30 +146,41 @@ const Home: React.FC = () => {
         </div>
 
         <div className="flex flex-col gap-3">
-          {recentDocs.map((doc) => (
-            <CuteCard
-              key={doc.id}
-              className="p-4 flex items-center justify-between hover:bg-neutral-50 dark:hover:bg-neutral-800/80 cursor-pointer group transition-colors"
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-900/20 text-accentblue flex items-center justify-center">
-                  <FileClock size={20} />
-                </div>
-                <div>
-                  <h4 className="font-bold text-neutral-800 dark:text-neutral-200">
-                    {doc.name}
-                  </h4>
-                  <p className="text-xs text-neutral-400">
-                    {doc.date} • {doc.size}
-                  </p>
-                </div>
-              </div>
-              <ChevronRight
-                size={20}
-                className="text-neutral-300 group-hover:text-accentblue transition-colors"
-              />
-            </CuteCard>
-          ))}
+          {loading ? (
+            <div className="py-6 text-neutral-500">Loading chats…</div>
+          ) : chats.length > 0 ? (
+            chats.slice(0, 3).map((c) => {
+              const id = c.chat_id || c.id || c._id;
+              const title = c.title || `Chat ${String(id)}`;
+              const date = c.updated_at || c.created_at || null;
+              const dateStr = date && typeof date === "number" ? new Date(date * 1000).toLocaleDateString() : date ? String(date) : "";
+              return (
+                <CuteCard
+                  key={String(id)}
+                  onClick={() => id && navigate(`/chat?chat_id=${encodeURIComponent(String(id))}`)}
+                  className="p-4 flex items-center justify-between hover:bg-neutral-50 dark:hover:bg-neutral-800/80 cursor-pointer group transition-colors"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-900/20 text-accentblue flex items-center justify-center">
+                      <MessageSquare size={20} />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-neutral-800 dark:text-neutral-200">
+                        {title}
+                      </h4>
+                      <p className="text-xs text-neutral-400">{dateStr}</p>
+                    </div>
+                  </div>
+                  <ChevronRight
+                    size={20}
+                    className="text-neutral-300 group-hover:text-accentblue transition-colors"
+                  />
+                </CuteCard>
+              );
+            })
+          ) : (
+            <div className="py-6 text-neutral-500">No recent chats</div>
+          )}
         </div>
       </CuteSection>
     </div>

@@ -4,6 +4,7 @@ import { ArrowLeft, Mail, User, AtSign, Save } from "lucide-react";
 import CuteButton from "../../components/ui/CuteButton";
 import CuteSection from "../../components/ui/CuteSection";
 import CuteInput from "../../components/ui/CuteInput";
+import { apiRequest } from "../../lib/apiClient";
 import { motion } from "framer-motion";
 import { getStoredUser } from "../../services/authService";
 import getGravatarUrl from "../../lib/gravatar";
@@ -11,22 +12,53 @@ import getGravatarUrl from "../../lib/gravatar";
 const EditProfile = () => {
   const navigate = useNavigate();
 
-  const handleSave = (e: React.FormEvent) => {
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Persist changes to localStorage (simulate API call)
+    setIsSaving(true);
     try {
-      const stored = getStoredUser() || {};
-      const updated = {
-        ...stored,
-        full_name: fullName,
-        username,
-        email,
-      };
-      localStorage.setItem("current_user", JSON.stringify(updated));
-    } catch (e) {
-      console.warn("Failed to save profile to storage", e);
+      // Only full_name is editable server-side
+      const res = await apiRequest(`/auth/update-profile`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ full_name: fullName }),
+      });
+
+      // If server returns updated user, merge into local storage
+      try {
+        const stored = getStoredUser() || {};
+        const returned = typeof res === "object" && res ? res : {};
+        const updated = {
+          ...stored,
+          ...(returned.user || returned),
+          full_name: fullName,
+        };
+        localStorage.setItem("current_user", JSON.stringify(updated));
+      } catch (err) {
+        // ignore storage errors
+        void err;
+      }
+
+      // refresh avatar from gravatar
+      try {
+        const emailStored = getStoredUser()?.email || email;
+        if (emailStored) {
+          const u = await getGravatarUrl(emailStored, 200);
+          setAvatarUrl(u);
+        }
+      } catch {
+        /* ignore */
+      }
+
+      navigate(-1);
+    } catch (err) {
+      console.warn("Failed to update profile", err);
+      // keep user on page so they can retry
+    } finally {
+      setIsSaving(false);
     }
-    navigate(-1);
   };
 
   const [avatarUrl, setAvatarUrl] = useState<string | null>(
@@ -115,6 +147,8 @@ const EditProfile = () => {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
+              readOnly
+              disabled
               icon={<AtSign size={20} />}
             />
             <CuteInput
@@ -122,6 +156,8 @@ const EditProfile = () => {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              readOnly
+              disabled
               icon={<Mail size={20} />}
             />
           </CuteSection>
@@ -131,6 +167,7 @@ const EditProfile = () => {
               fullWidth
               type="submit"
               className="shadow-accentblue/25"
+              disabled={isSaving}
             >
               <Save size={20} /> Save Changes
             </CuteButton>

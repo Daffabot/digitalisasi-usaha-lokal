@@ -1,7 +1,9 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { cn } from "../../lib/utils";
 import { Bot, User } from "lucide-react";
+import getGravatarUrl from "../../lib/gravatar";
+import { getStoredUser } from "../../services/authService";
 
 interface ChatBubbleProps {
   message: string;
@@ -14,6 +16,28 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({
   isAi = false,
   timestamp,
 }) => {
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    try {
+      const user = getStoredUser();
+      const email = user?.email;
+      if (!email) return;
+      getGravatarUrl(email, 80)
+        .then((url) => {
+          if (mounted) setAvatarUrl(url);
+        })
+        .catch(() => {
+          /* ignore */
+        });
+    } catch {
+      /* ignore */
+    }
+    return () => {
+      mounted = false;
+    };
+  }, []);
   return (
     <motion.div
       initial={{ opacity: 0, y: 6, scale: 0.98 }}
@@ -52,8 +76,16 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({
       </div>
 
       {!isAi && (
-        <div className="w-7 h-7 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center text-neutral-500 shrink-0">
-          <User size={14} />
+        <div className="w-7 h-7 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center text-neutral-500 shrink-0 overflow-hidden">
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt="You"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <User size={14} />
+          )}
         </div>
       )}
     </motion.div>

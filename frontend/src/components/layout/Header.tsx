@@ -1,6 +1,9 @@
-import { Bell, Search } from "lucide-react";
+import { Settings } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const Header = () => {
+  const navigate = useNavigate();
+
   return (
     <header className="sticky top-0 z-40 w-full px-6 py-4 flex items-center justify-between bg-white/80 dark:bg-neutral-950/80 backdrop-blur-md border-b border-neutral-100 dark:border-neutral-800">
       <div className="flex items-center gap-2">
@@ -13,12 +16,8 @@ const Header = () => {
       </div>
 
       <div className="flex items-center gap-4">
-        <button className="p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-neutral-600 dark:text-neutral-400">
-          <Search size={20} />
-        </button>
-        <button className="relative p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-neutral-600 dark:text-neutral-400">
-          <Bell size={20} />
-          <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-accentpink border-2 border-white dark:border-neutral-950"></span>
+        <button className="p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-neutral-600 dark:text-neutral-400" onClick={() => navigate("/settings")}>
+          <Settings size={20} />
         </button>
       </div>
     </header>

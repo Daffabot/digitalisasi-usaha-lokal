@@ -21,8 +21,30 @@ async function refreshToken(): Promise<string | null> {
     credentials: "include",
     headers: { "content-type": "application/json" },
   });
-  if (!res.ok) return null;
-  const data = await res.json();
+  const text = await res.text().catch(() => "");
+  let parsed: Record<string, unknown> | null = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch (e) {
+    if (isDev) console.debug("refreshToken: failed to parse response body as JSON", e);
+    parsed = null;
+  }
+
+  if (!res.ok) {
+    const message = (parsed && (parsed.error || parsed.message)) || text || `Refresh failed (${res.status})`;
+    // clear local session on refresh failure
+    setAccessToken(null);
+    try {
+      localStorage.removeItem("current_user");
+    } catch (e) {
+      if (isDev) console.debug("refreshToken: failed to remove current_user", e);
+    }
+    if (isDev) console.debug("refreshToken failed", { status: res.status, message, body: text });
+    // throw so callers know refresh failed explicitly
+    throw new Error(String(message));
+  }
+
+  const data = parsed || (text ? JSON.parse(text) : null) || {};
   const token = data?.access_token || null;
   setAccessToken(token);
   return token;

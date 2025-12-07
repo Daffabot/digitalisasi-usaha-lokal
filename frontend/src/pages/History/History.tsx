@@ -1,94 +1,90 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Search,
   ArrowUpDown,
-  FileText,
-  MoreVertical,
-  Image as ImageIcon,
-  FileSpreadsheet,
+  ChevronRight,
+  MessageSquare,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import CuteCard from "../../components/ui/CuteCard";
-import { cn } from "../../lib/utils";
-
-// Mock Data
-const MOCK_DOCS = [
-  {
-    id: "1",
-    title: "Invoice_Mar_001.pdf",
-    date: "2024-03-20",
-    size: "1.2 MB",
-    type: "pdf",
-    thumbnail: "https://picsum.photos/100/100?random=1",
-  },
-  {
-    id: "2",
-    title: "Contract_Vendor_A.jpg",
-    date: "2024-03-19",
-    size: "3.4 MB",
-    type: "image",
-    thumbnail: "https://picsum.photos/100/100?random=2",
-  },
-  {
-    id: "3",
-    title: "Receipt_Lunch.png",
-    date: "2024-03-18",
-    size: "0.8 MB",
-    type: "image",
-    thumbnail: "https://picsum.photos/100/100?random=3",
-  },
-  {
-    id: "4",
-    title: "Meeting_Notes_Q1.xlsx",
-    date: "2024-03-15",
-    size: "45 KB",
-    type: "excel",
-    thumbnail: null,
-  },
-  {
-    id: "5",
-    title: "Project_Proposal_v2.pdf",
-    date: "2024-03-10",
-    size: "5.6 MB",
-    type: "pdf",
-    thumbnail: "https://picsum.photos/100/100?random=4",
-  },
-];
+import { getChatHistory } from "../../services/chatService";
 
 const History = () => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-  const [filterType, setFilterType] = useState<
-    "all" | "pdf" | "image" | "excel"
-  >("all");
+  type ChatItem = {
+    chat_id?: string;
+    id?: string;
+    _id?: string;
+    title?: string;
+    summary?: string;
+    preview?: string;
+    last_message?: { content?: string };
+    updated_at?: string;
+    created_at?: string;
+    date?: string;
+  };
+  const [chats, setChats] = useState<ChatItem[]>([]);
+  const [loading, setLoading] = useState(false);
 
   // Filter and Sort Logic
   const filteredDocs = useMemo(() => {
-    const docs = MOCK_DOCS.filter(
-      (doc) =>
-        doc.title.toLowerCase().includes(searchTerm.toLowerCase()) &&
-        (filterType === "all" || doc.type === filterType)
-    );
+    const docs = chats.filter((chat) => {
+      const title = (chat.title || chat.summary || chat.preview || "").toString();
+      return title.toLowerCase().includes(searchTerm.toLowerCase());
+    });
 
     return docs.sort((a, b) => {
-      const dateA = new Date(a.date).getTime();
-      const dateB = new Date(b.date).getTime();
+      const dateA = new Date(a.updated_at || a.created_at || a.date || 0).getTime();
+      const dateB = new Date(b.updated_at || b.created_at || b.date || 0).getTime();
       return sortOrder === "asc" ? dateA - dateB : dateB - dateA;
     });
-  }, [searchTerm, sortOrder, filterType]);
+  }, [searchTerm, sortOrder, chats]);
 
-  const getIcon = (type: string) => {
-    switch (type) {
-      case "excel":
-        return <FileSpreadsheet className="text-green-500" />;
-      case "image":
-        return <ImageIcon className="text-purple-500" />;
-      default:
-        return <FileText className="text-accentblue" />;
+  function formatDateValue(v: unknown) {
+    if (!v) return "";
+    // numeric timestamps from API are in seconds (float)
+    if (typeof v === "number") return new Date(v * 1000).toLocaleDateString();
+    const asNum = Number(v);
+    if (!Number.isNaN(asNum) && String(asNum).length >= 10) return new Date(asNum * 1000).toLocaleDateString();
+    try {
+      return new Date(String(v)).toLocaleDateString();
+    } catch {
+      return String(v);
     }
-  };
+  }
+
+  // no-op: chat history uses MessageSquare icon
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      setLoading(true);
+      try {
+        const h = await getChatHistory();
+        if (!mounted) return;
+        // API returns { chats: [...] } — accept both shapes for robustness
+        const resp = h as unknown;
+        const asRecord = resp && typeof resp === "object" ? (resp as Record<string, unknown>) : null;
+        const items = asRecord && Array.isArray(asRecord.chats)
+          ? (asRecord.chats as ChatItem[])
+          : Array.isArray(resp)
+          ? (resp as ChatItem[])
+          : [];
+        setChats(items);
+      } catch (err) {
+        console.error("Failed to load chat history", err);
+        setChats([]);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   return (
     <div className="flex flex-col gap-6 pb-20">
@@ -105,7 +101,7 @@ const History = () => {
           />
           <input
             type="text"
-            placeholder="Search documents..."
+            placeholder="Search chats..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full bg-neutral-100 dark:bg-neutral-900 rounded-2xl py-3 pl-12 pr-4 outline-none focus:ring-2 focus:ring-accentblue/50 transition-all text-neutral-800 dark:text-white placeholder-neutral-400"
@@ -115,20 +111,7 @@ const History = () => {
         {/* Filters */}
         <div className="flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
           <div className="flex gap-2">
-            {(["all", "pdf", "image", "excel"] as const).map((type) => (
-              <button
-                key={type}
-                onClick={() => setFilterType(type)}
-                className={cn(
-                  "px-3 py-1.5 rounded-xl text-sm font-bold capitalize transition-all whitespace-nowrap cursor-pointer",
-                  filterType === type
-                    ? "bg-accentblue text-white border border-blue-300"
-                    : "bg-white dark:bg-neutral-800 text-neutral-500 border border-b-4 border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50"
-                )}
-              >
-                {type}
-              </button>
-            ))}
+            <span className="px-3 py-1.5 rounded-xl text-sm font-bold">Chats</span>
           </div>
 
           <button
@@ -152,56 +135,50 @@ const History = () => {
       {/* Document List */}
       <div className="flex flex-col gap-3">
         <AnimatePresence mode="popLayout">
-          {filteredDocs.length > 0 ? (
-            filteredDocs.map((doc, index) => (
-              <motion.div
-                key={doc.id}
-                layout
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ duration: 0.2, delay: index * 0.05 }}
-              >
-                <CuteCard
-                  onClick={() => navigate(`/history/${doc.id}`)}
-                  className="p-3 flex items-center gap-4 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 cursor-pointer group transition-all active:scale-[0.98]"
-                >
-                  {/* Thumbnail / Icon */}
-                  <div className="w-16 h-16 rounded-2xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center overflow-hidden shrink-0 border border-neutral-100 dark:border-neutral-700">
-                    {doc.thumbnail ? (
-                      <img
-                        src={doc.thumbnail}
-                        alt="thumb"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      getIcon(doc.type)
-                    )}
-                  </div>
-
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-neutral-800 dark:text-neutral-200 truncate pr-4 text-base">
-                      {doc.title}
-                    </h3>
-                    <div className="flex items-center gap-2 text-xs text-neutral-400 mt-1">
-                      <span className="uppercase font-bold bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-[10px]">
-                        {doc.type}
-                      </span>
-                      <span>•</span>
-                      <span>{doc.date}</span>
-                      <span>•</span>
-                      <span>{doc.size}</span>
-                    </div>
-                  </div>
-
-                  {/* Action */}
-                  <button className="p-2 text-neutral-300 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors">
-                    <MoreVertical size={20} />
-                  </button>
-                </CuteCard>
+            {loading ? (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="py-8 text-center">
+                <div className="text-neutral-500">Loading chats…</div>
               </motion.div>
-            ))
+            ) : filteredDocs.length > 0 ? (
+            filteredDocs.map((chat: ChatItem, index: number) => {
+              const id = chat.chat_id || chat.id || chat._id;
+              const title = (chat.title || chat.summary || chat.preview || chat.last_message?.content || `Chat ${String(id).slice(0,8)}`);
+              const date = chat.updated_at || chat.created_at || chat.date || null;
+              const dateStr = formatDateValue(date);
+
+              return (
+                <motion.div
+                  key={id}
+                  layout
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  transition={{ duration: 0.2, delay: index * 0.05 }}
+                >
+                  <CuteCard
+                    onClick={() => id && navigate(`/chat?chat_id=${encodeURIComponent(String(id))}`)}
+                    className="p-3 flex items-center gap-4 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 cursor-pointer group transition-all active:scale-[0.98]"
+                  >
+                    <div className="w-16 h-16 rounded-2xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center shrink-0 border border-neutral-100 dark:border-neutral-700 text-accentblue">
+                      <MessageSquare size={22} />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-bold text-neutral-800 dark:text-neutral-200 truncate pr-4 text-base">
+                        {title}
+                      </h3>
+                      <div className="flex items-center gap-2 text-xs text-neutral-400 mt-1">
+                        <span>{dateStr}</span>
+                      </div>
+                    </div>
+
+                    <button className="p-2 text-neutral-300 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors">
+                      <ChevronRight size={20} />
+                    </button>
+                  </CuteCard>
+                </motion.div>
+              );
+            })
           ) : (
             <motion.div
               initial={{ opacity: 0 }}
@@ -211,12 +188,8 @@ const History = () => {
               <div className="w-20 h-20 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center text-neutral-300 mb-4">
                 <Search size={32} />
               </div>
-              <h3 className="text-lg font-bold text-neutral-500">
-                No documents found
-              </h3>
-              <p className="text-sm text-neutral-400">
-                Try adjusting your filters
-              </p>
+              <h3 className="text-lg font-bold text-neutral-500">No chats found</h3>
+              <p className="text-sm text-neutral-400">Start a new chat from Scan or Upload a document</p>
             </motion.div>
           )}
         </AnimatePresence>

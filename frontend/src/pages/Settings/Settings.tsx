@@ -73,7 +73,7 @@ const Settings = () => {
       title: "Support",
       icon: HelpCircle,
       items: [
-        { label: "Help Center", path: "/settings/help", icon: HelpCircle },
+        { label: "Help Center", path: "/help", icon: HelpCircle },
         { label: "Terms of Service", path: "/terms", icon: FileText },
       ],
     },

@@ -1,33 +1,45 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Send, Sparkles, FileText, Paperclip } from "lucide-react";
+import { ArrowLeft, Send, Sparkles, FileText } from "lucide-react";
 import { motion } from "framer-motion";
 import ChatBubble from "../../components/ui/ChatBubble";
 import CuteButton from "../../components/ui/CuteButton";
 import { cn } from "../../lib/utils";
 
-type ChatServiceMessage = {
-  content?: string;
+type ChatMessage = {
+  id?: number | string;
+  chat_id?: string;
   message?: string;
+  content?: string;
   role?: string;
+  created_at?: number | string;
   timestamp?: string;
   [key: string]: unknown;
 };
+
+function formatTs(v: unknown) {
+  if (!v) return "";
+  if (typeof v === "number") return new Date(v * 1000).toLocaleString();
+  const n = Number(v);
+  if (!Number.isNaN(n) && String(n).length >= 10)
+    return new Date(n * 1000).toLocaleString();
+  try {
+    return new Date(String(v)).toLocaleString();
+  } catch {
+    return String(v);
+  }
+}
 
 const ChatAssistant = () => {
   const navigate = useNavigate();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
-  const [keyboardOffset, setKeyboardOffset] = useState(0); // px offset when virtual keyboard is visible
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      text: "Hi there! I've analyzed your document (Invoice_Mar_001.pdf). It seems to be an invoice for office supplies. What would you like to know about it?",
-      isAi: true,
-      timestamp: "Just now",
-    },
-  ]);
+  const [messages, setMessages] = useState<
+    Array<{ id: number; text: string; isAi: boolean; timestamp?: string }>
+  >([]);
+  const [loadingMessages, setLoadingMessages] = useState(true);
+  const [chatTitle, setChatTitle] = useState<string | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -36,44 +48,6 @@ const ChatAssistant = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
-
-  // Keep the input bar above the on-screen keyboard on mobile using visualViewport
-  useEffect(() => {
-    const onViewportChange = () => {
-      const win = window as unknown as { visualViewport?: VisualViewport };
-      const vv = win.visualViewport;
-      if (!vv) {
-        setKeyboardOffset(0);
-        return;
-      }
-      // approximate keyboard height: difference between layout viewport and visual viewport
-      const offset = Math.max(
-        0,
-        window.innerHeight - vv.height - (vv.offsetTop || 0)
-      );
-      setKeyboardOffset(offset);
-    };
-
-    const win = window as unknown as { visualViewport?: VisualViewport };
-    if (win.visualViewport) {
-      win.visualViewport.addEventListener("resize", onViewportChange);
-      win.visualViewport.addEventListener("scroll", onViewportChange);
-    }
-    window.addEventListener("resize", onViewportChange);
-
-    // initial check
-    setTimeout(onViewportChange, 50);
-
-    return () => {
-      const win = window as unknown as { visualViewport?: VisualViewport };
-      if (win.visualViewport) {
-        win.visualViewport.removeEventListener("resize", onViewportChange);
-        win.visualViewport.removeEventListener("scroll", onViewportChange);
-      }
-      window.removeEventListener("resize", onViewportChange);
-      setKeyboardOffset(0);
-    };
-  }, []);
 
   const handleSendMessage = () => {
     if (!inputValue.trim()) return;
@@ -104,16 +78,20 @@ const ChatAssistant = () => {
         const chatIdToUse = resp?.chat_id || qChatId || null;
         if (chatIdToUse) {
           const chat = await getChat(chatIdToUse);
-          // Expect chat.messages or chat.data — normalize
-          const msgs = (chat?.messages || chat?.data || []).map(
-            (m: ChatServiceMessage, i: number) => ({
-              id: Date.now() + i + 1,
-              text: m.content || m.message || JSON.stringify(m),
-              isAi: (m.role ?? "assistant") !== "user",
-              timestamp: m.timestamp || "",
-            })
-          );
+          // chat endpoint returns { chat: {...}, messages: [...] }
+          const msgsRaw = chat?.messages || chat?.data || [];
+          const msgs = (msgsRaw || []).map((m: ChatMessage, i: number) => ({
+            id: Number(m.id || Date.now() + i + 1),
+            text: (m.message || m.content || JSON.stringify(m)) as string,
+            isAi: (m.role ?? "assistant") !== "user",
+            timestamp: m.created_at
+              ? formatTs(m.created_at)
+              : m.timestamp || "",
+          }));
           setMessages((prev) => [...prev, ...msgs]);
+          // set chat title if available
+          const c = chat?.chat || chat;
+          if (c && c.title) setChatTitle(String(c.title));
         } else if (resp?.message) {
           // some responses might return immediate reply
           type ReplyItem =
@@ -151,15 +129,18 @@ const ChatAssistant = () => {
           const qChatId = params.get("chat_id");
           if (qChatId) {
             const chat = await getChat(qChatId);
-            const msgs = (chat?.messages || chat?.data || []).map(
-              (m: ChatServiceMessage, i: number) => ({
-                id: Date.now() + i + 1,
-                text: m.content || m.message || JSON.stringify(m),
-                isAi: (m.role ?? "assistant") !== "user",
-                timestamp: m.timestamp || "",
-              })
-            );
+            const msgsRaw = chat?.messages || chat?.data || [];
+            const msgs = (msgsRaw || []).map((m: ChatMessage, i: number) => ({
+              id: Number(m.id || Date.now() + i + 1),
+              text: (m.message || m.content || JSON.stringify(m)) as string,
+              isAi: (m.role ?? "assistant") !== "user",
+              timestamp: m.created_at
+                ? formatTs(m.created_at)
+                : m.timestamp || "",
+            }));
             setMessages(msgs.length ? msgs : []);
+            const c = chat?.chat || chat;
+            if (c && c.title) setChatTitle(String(c.title));
           }
         } catch (e) {
           console.error(e);
@@ -172,24 +153,56 @@ const ChatAssistant = () => {
 
   // Load chat if chat_id provided in query params
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const qChatId = params.get("chat_id");
-    if (!qChatId) return;
     (async () => {
+      setLoadingMessages(true);
       try {
-        const { getChat } = await import("../../services/chatService");
-        const chat = await getChat(qChatId);
-        const msgs = (chat?.messages || chat?.data || []).map(
-          (m: ChatServiceMessage, i: number) => ({
-            id: i + Date.now(),
-            text: m.content || m.message || JSON.stringify(m),
-            isAi: m.role !== "user",
-            timestamp: m.timestamp || "",
-          })
+        const params = new URLSearchParams(window.location.search);
+        const qChatId = params.get("chat_id");
+        const { getChat, getChatHistory } = await import(
+          "../../services/chatService"
         );
-        setMessages(msgs.length ? msgs : []);
+
+        // load chat history and pick latest if no chat_id provided
+        const historyRaw = await getChatHistory();
+        const asRecord =
+          historyRaw && typeof historyRaw === "object"
+            ? (historyRaw as Record<string, unknown>)
+            : null;
+        const history =
+          asRecord && Array.isArray(asRecord.chats)
+            ? (asRecord.chats as ChatMessage[])
+            : Array.isArray(historyRaw)
+            ? (historyRaw as ChatMessage[])
+            : [];
+
+        let chatIdToLoad = qChatId;
+        if (!chatIdToLoad && history && history.length > 0) {
+          const candidate = history[0].chat_id ?? history[0].id;
+          chatIdToLoad = candidate != null ? String(candidate) : null;
+        }
+
+        if (chatIdToLoad) {
+          const chatResp = await getChat(chatIdToLoad);
+          const c = chatResp?.chat || chatResp || null;
+          if (c && c.title) setChatTitle(String(c.title));
+          const msgsRaw = chatResp?.messages || chatResp?.data || [];
+          const msgs = (msgsRaw || []).map((m: ChatMessage, i: number) => ({
+            id: Number(m.id || Date.now() + i + 1),
+            text: (m.message || m.content || JSON.stringify(m)) as string,
+            isAi: (m.role ?? "assistant") !== "user",
+            timestamp: m.created_at
+              ? formatTs(m.created_at)
+              : m.timestamp || "",
+          }));
+          setMessages(msgs.length ? msgs : []);
+        } else {
+          setMessages([]);
+        }
       } catch (err) {
         console.error(err);
+        setMessages([]);
+      } finally {
+        setLoadingMessages(false);
       }
     })();
   }, []);
@@ -228,24 +241,27 @@ const ChatAssistant = () => {
         <div className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-300">
           <FileText size={14} className="text-accentblue" />
           <span>
-            Viewing context: <strong>Invoice_Mar_001.pdf</strong>
+            Viewing context: <strong>{chatTitle || "—"}</strong>
           </span>
         </div>
       </div>
 
       {/* Chat Area */}
-      <div
-        className="flex-1 overflow-y-auto p-4"
-        style={{ paddingBottom: `${keyboardOffset + 96}px` }}
-      >
-        {messages.map((msg) => (
-          <ChatBubble
-            key={msg.id}
-            message={msg.text}
-            isAi={msg.isAi}
-            timestamp={msg.timestamp}
-          />
-        ))}
+      <div className="flex-1 overflow-y-auto p-4 pb-28"> 
+        {loadingMessages ? (
+          <div className="py-12 text-center text-neutral-500">
+            Loading messages…
+          </div>
+        ) : (
+          messages.map((msg) => (
+            <ChatBubble
+              key={msg.id}
+              message={msg.text}
+              isAi={msg.isAi}
+              timestamp={msg.timestamp}
+            />
+          ))
+        )}
 
         {isTyping && (
           <motion.div
@@ -272,14 +288,8 @@ const ChatAssistant = () => {
       </div>
 
       {/* Input Area */}
-      <div
-        className="fixed left-0 right-0 bg-white dark:bg-neutral-900 border-t border-neutral-100 dark:border-neutral-800 p-4 pb-safe"
-        style={{ bottom: keyboardOffset, transition: "bottom 160ms ease" }}
-      >
+      <div className="w-full bg-white dark:bg-neutral-900 border-t border-neutral-100 dark:border-neutral-800 p-4">
         <div className="flex items-center gap-2 max-w-4xl mx-auto">
-          <button className="p-2 text-neutral-400 hover:text-accentblue transition-colors">
-            <Paperclip size={20} />
-          </button>
           <div className="flex-1 bg-neutral-100 dark:bg-neutral-800 rounded-2xl flex items-center px-4 py-2 focus-within:ring-2 focus-within:ring-accentblue/50 transition-all">
             <input
               type="text"
