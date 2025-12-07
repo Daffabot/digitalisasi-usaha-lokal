@@ -5,7 +5,7 @@ from models import (
     create_chat, get_chat_by_id, add_chat_message, 
     get_chat_messages_for_api, update_chat_title
 )
-from services.ai_formatter import call_kolosal_ai
+from utils.ai_formatter import call_kolosal_ai
 
 
 def process_chat(user_id: int, messages: list, chat_id: str = None) -> dict:
@@ -79,13 +79,14 @@ def process_chat(user_id: int, messages: list, chat_id: str = None) -> dict:
     }
 
 
-def format_text_via_chat(user_id: int, text: str) -> dict:
+def format_text_via_chat(user_id: int, text: str, title: str = None) -> dict:
     """
     Format/normalize text using chat - for OCR integration
     
     Args:
         user_id: User ID
         text: Raw text to format
+        title: Optional custom title for the chat (if None, uses first 50 chars of text)
     
     Returns:
         dict with formatted result
@@ -97,4 +98,80 @@ def format_text_via_chat(user_id: int, text: str) -> dict:
         }
     ]
     
-    return process_chat(user_id, messages)
+    if title is None:
+        title = text[:50].strip() if text else "OCR Result"
+        if len(text) > 50:
+            title += "..."
+    
+    # Create chat with custom title
+    chat_result = create_chat(user_id, title)
+    if "error" in chat_result:
+        return {"error": chat_result["error"]}
+    
+    chat_id = chat_result["chat_id"]
+    
+    # Add OCR text as user message (for context)
+    add_chat_message(chat_id, f"Here is the data:\n{text}", "user")
+    
+    # Get all messages for this chat
+    all_messages = get_chat_messages_for_api(chat_id)
+    
+    # Call AI for formatting
+    ai_result = call_kolosal_ai(all_messages)
+    
+    if not ai_result["success"]:
+        return {
+            "error": ai_result.get("error", "AI request failed"),
+            "chat_id": chat_id,
+            "is_new_chat": True
+        }
+    
+    ai_response = ai_result["content"]
+    
+    # Add AI response to database
+    add_chat_message(chat_id, ai_response, "assistant")
+    
+    return {
+        "chat_id": chat_id,
+        "is_new_chat": True,
+        "response": ai_response,
+        "message_count": 2
+    }
+
+
+def save_ocr_result_to_chat(user_id: int, ocr_result: str, title: str = None, engine: str = "kolosalocr") -> dict:
+    """
+    Save OCR result to a new chat without calling AI
+    Used for Kolosal OCR which already returns structured data
+    
+    Args:
+        user_id: User ID
+        ocr_result: OCR result text/JSON to save
+        title: Title from OCR response (for kolosalocr)
+        engine: OCR engine name for fallback title
+    
+    Returns:
+        dict with chat_id
+    """
+    if not title:
+        title = f"OCR Result ({engine})"
+    
+    chat_result = create_chat(user_id, title)
+    if "error" in chat_result:
+        return {"error": chat_result["error"]}
+    
+    chat_id = chat_result["chat_id"]
+    
+    # Add OCR result as user message
+    add_result = add_chat_message(chat_id, f"OCR Result:\n{ocr_result}", "user")
+    if "error" in add_result:
+        return {"error": add_result["error"]}
+    
+    # Add assistant acknowledgment
+    add_chat_message(chat_id, "That is good, OCR processing is complete.", "assistant")
+    
+    return {
+        "chat_id": chat_id,
+        "is_new_chat": True,
+        "response": ocr_result
+    }

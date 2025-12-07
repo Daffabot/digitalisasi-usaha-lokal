@@ -304,6 +304,30 @@ def get_all_users() -> list:
         return [dict(row) for row in cursor.fetchall()]
 
 
+def update_user_full_name(user_id: int, full_name: str) -> dict:
+    """Update user's full name"""
+    with get_db_connection() as conn:
+        cursor = get_cursor(conn)
+        
+        # Check if user exists
+        execute_query(cursor, 'SELECT id FROM users WHERE id = ?', (user_id,))
+        if not cursor.fetchone():
+            return {"error": "User not found"}
+        
+        try:
+            execute_query(cursor, '''
+                UPDATE users SET full_name = ?, updated_at = ? WHERE id = ?
+            ''', (full_name, time.time(), user_id))
+            
+            return {
+                "success": True,
+                "user_id": user_id,
+                "full_name": full_name
+            }
+        except Exception as e:
+            return {"error": str(e)}
+
+
 # ============ Chat CRUD Functions ============
 
 def create_chat(user_id: int, title: str = None) -> dict:

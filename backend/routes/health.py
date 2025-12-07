@@ -5,7 +5,7 @@ import time
 from flask import Blueprint, jsonify
 
 from config import MAX_QUEUE_SIZE, AVG_TIME
-from services.queue_manager import get_queue_stats, get_current_job
+from core.queue_manager import get_queue_stats, get_current_job
 
 health_bp = Blueprint('health', __name__)
 

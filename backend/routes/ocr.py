@@ -7,15 +7,18 @@ from flask import Blueprint, request, jsonify, g, send_file
 
 from config import MAX_BATCH_SIZE, AVG_TIME, DOWNLOAD_DIR
 from utils.helpers import allowed_size, parse_ocr_options, load_image_from_file
-from services.queue_manager import create_job, get_job, delete_job, get_job_position
+from core.queue_manager import create_job, get_job, delete_job, get_job_position
 from ml.ocr import run_ocr_paddleocr, run_ocr_enhanced
+from ml.kolosal_ocr import run_ocr_kolosal, format_kolosal_result_for_file
 from middleware.auth import jwt_required
-from services.ai_formatter import normalize_text_with_ai
-from services.file_converter import convert_to_excel, convert_to_pdf, ensure_download_dir
+from utils.ai_formatter import parse_json_from_response
+from services.chat_service import format_text_via_chat
+from services.file_converter_service import convert_to_excel, convert_to_pdf, ensure_download_dir
 
 ocr_bp = Blueprint('ocr', __name__)
 
 VALID_FILE_TYPES = ["excel", "pdf"]
+VALID_ENGINES = ["paddleocr", "kolosalocr"]
 
 
 @ocr_bp.route("/ocr", methods=["POST"])
@@ -30,6 +33,10 @@ def ocr_single():
         return jsonify({"error": "file-type is required (excel or pdf)"}), 400
     if file_type not in VALID_FILE_TYPES:
         return jsonify({"error": "file-type must be 'excel' or 'pdf'"}), 400
+    
+    engine = request.form.get("engine", "kolosalocr").lower()
+    if engine not in VALID_ENGINES:
+        return jsonify({"error": f"engine must be one of: {', '.join(VALID_ENGINES)}"}), 400
     
     file = request.files["image"]
     
@@ -47,11 +54,17 @@ def ocr_single():
     if use_enhanced:
         ocr_options = parse_ocr_options(request.form)
     
+    if engine == "kolosalocr":
+        ocr_options["auto_fix"] = request.form.get("auto_fix", "true").lower() == "true"
+        ocr_options["invoice"] = request.form.get("invoice", "false").lower() == "true"
+        ocr_options["language"] = request.form.get("language", "auto")
+    
     job_id, position, eta = create_job(
         "single", [image], webhook,
         use_enhanced, ocr_options,
         user_id=g.current_user["id"],
-        file_type=file_type  # Pass file_type
+        file_type=file_type,
+        engine=engine
     )
     
     if job_id is None:
@@ -63,7 +76,8 @@ def ocr_single():
         "position": position,
         "eta_seconds": eta,
         "enhanced_mode": use_enhanced,
-        "file_type": file_type,  # Include file_type in response
+        "engine": engine,
+        "file_type": file_type,
         "user": g.current_user["username"]
     })
 
@@ -77,6 +91,10 @@ def ocr_batch():
         return jsonify({"error": "file-type is required (excel or pdf)"}), 400
     if file_type not in VALID_FILE_TYPES:
         return jsonify({"error": "file-type must be 'excel' or 'pdf'"}), 400
+    
+    engine = request.form.get("engine", "kolosalocr").lower()
+    if engine not in VALID_ENGINES:
+        return jsonify({"error": f"engine must be one of: {', '.join(VALID_ENGINES)}"}), 400
     
     files = request.files.getlist("images")
     
@@ -110,11 +128,17 @@ def ocr_batch():
     if use_enhanced:
         ocr_options = parse_ocr_options(request.form)
     
+    if engine == "kolosalocr":
+        ocr_options["auto_fix"] = request.form.get("auto_fix", "true").lower() == "true"
+        ocr_options["invoice"] = request.form.get("invoice", "false").lower() == "true"
+        ocr_options["language"] = request.form.get("language", "auto")
+    
     job_id, position, eta = create_job(
         "batch", images, webhook,
         use_enhanced, ocr_options,
         user_id=g.current_user["id"],
-        file_type=file_type  # Pass file_type
+        file_type=file_type,
+        engine=engine
     )
     
     if job_id is None:
@@ -127,7 +151,8 @@ def ocr_batch():
         "eta_seconds": eta,
         "valid_images": len(images),
         "enhanced_mode": use_enhanced,
-        "file_type": file_type,  # Include file_type in response
+        "engine": engine,
+        "file_type": file_type,
         "errors": errors if errors else None,
         "user": g.current_user["username"]
     })
@@ -145,6 +170,10 @@ def ocr_direct():
         return jsonify({"error": "file-type is required (excel or pdf)"}), 400
     if file_type not in VALID_FILE_TYPES:
         return jsonify({"error": "file-type must be 'excel' or 'pdf'"}), 400
+    
+    engine = request.form.get("engine", "kolosalocr").lower()
+    if engine not in VALID_ENGINES:
+        return jsonify({"error": f"engine must be one of: {', '.join(VALID_ENGINES)}"}), 400
     
     file = request.files["image"]
     
@@ -165,20 +194,40 @@ def ocr_direct():
         job_id = str(uuid.uuid4())
         start_time = time.time()
         
-        # Step 1: OCR Processing
-        if use_enhanced:
-            ocr_options = {
-                "detail": detail,
-                "lang": lang,
-                "min_confidence": min_confidence,
-                "merge_lines": request.form.get("merge_lines", "true").lower() == "true"
+        if engine == "kolosalocr":
+            kolosal_options = {
+                "auto_fix": request.form.get("auto_fix", "true").lower() == "true",
+                "invoice": request.form.get("invoice", "false").lower() == "true",
+                "language": request.form.get("language", "auto")
             }
-            result = run_ocr_enhanced(image, ocr_options)
+            kolosal_result = run_ocr_kolosal(image, kolosal_options)
+            normalized = format_kolosal_result_for_file(kolosal_result)
+            normalized_results = [normalized]
         else:
-            result = run_ocr_paddleocr(image, detail=detail, lang=lang)
-        
-        normalized = normalize_text_with_ai(result)
-        normalized_results = [normalized]
+            if use_enhanced:
+                ocr_options = {
+                    "detail": detail,
+                    "lang": lang,
+                    "min_confidence": min_confidence,
+                    "merge_lines": request.form.get("merge_lines", "true").lower() == "true"
+                }
+                result = run_ocr_enhanced(image, ocr_options)
+            else:
+                result = run_ocr_paddleocr(image, detail=detail, lang=lang)
+            
+            # Format via chat service if user is authenticated
+            user_id = g.current_user.get("id") if g.current_user else None
+            if user_id:
+                chat_result = format_text_via_chat(user_id, result)
+                if "error" not in chat_result:
+                    ai_response = chat_result.get("response", "")
+                    normalized = parse_json_from_response(ai_response)
+                else:
+                    normalized = {"data": result, "is_json": False}
+            else:
+                normalized = {"data": result, "is_json": False}
+            
+            normalized_results = [normalized]
         
         if file_type == "pdf":
             file_path = convert_to_pdf(normalized_results, job_id)
@@ -190,7 +239,7 @@ def ocr_direct():
             download_name = f"ocr_result_{job_id}.xlsx"
         
         processing_time = time.time() - start_time
-        print(f"Direct OCR completed in {processing_time:.2f}s - File: {file_path}")
+        print(f"Direct OCR ({engine}) completed in {processing_time:.2f}s - File: {file_path}")
         
         return send_file(
             file_path,
@@ -260,10 +309,8 @@ def take(job_id):
             delete_job(job_id)
             return jsonify({"error": "File not found"}), 404
         
-        # Get filename from path
         filename = os.path.basename(file_path)
         
-        # Return status with download URL instead of file directly
         return jsonify({
             "job_id": job_id,
             "status": "done",
@@ -272,7 +319,6 @@ def take(job_id):
             "download_url": f"/download/{filename}"
         })
     
-    # Fallback for unknown status
     return jsonify({"error": "Unknown job status"}), 500
 
 
@@ -280,7 +326,6 @@ def take(job_id):
 @jwt_required
 def download_file(filename):
     """Download file by filename (requires authentication)"""
-    # Validate filename to prevent directory traversal
     if ".." in filename or "/" in filename or "\\" in filename:
         return jsonify({"error": "Invalid filename"}), 400
     
@@ -289,7 +334,6 @@ def download_file(filename):
     if not os.path.exists(file_path):
         return jsonify({"error": "File not found"}), 404
     
-    # Determine mimetype based on extension
     if filename.endswith(".pdf"):
         mimetype = "application/pdf"
     elif filename.endswith(".xlsx"):
@@ -303,4 +347,3 @@ def download_file(filename):
         as_attachment=True,
         download_name=filename
     )
-

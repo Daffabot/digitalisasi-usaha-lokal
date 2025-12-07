@@ -11,10 +11,10 @@ from config import (
     RATE_LIMIT_DEFAULT, RATE_LIMIT_BATCH, RATE_LIMIT_DIRECT
 )
 from routes import register_blueprints
-from ml.ocr import load_ocr_model, test_paddle_ocr
+from ml.ocr import load_ocr_model
 from models import init_pg_pool, get_db_connection
-from services.worker import start_worker
-from services.scheduler import start_scheduler, shutdown_scheduler
+from core.worker import start_worker
+from core.scheduler import start_scheduler, shutdown_scheduler
 
 
 def init_db():
@@ -74,12 +74,12 @@ def create_app():
     # Disable strict slashes globally
     app.url_map.strict_slashes = False
     
-    # Enable CORS
     CORS(app, resources={
         r"/*": {
-            "origins": "*",
-            "methods": ["GET", "POST", "OPTIONS"],
-            "allow_headers": ["Content-Type", "Authorization"]
+            "origins": ["http://localhost:3000", "http://localhost:5173", "https://your-front-end.com"],
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization"],
+            "supports_credentials": True
         }
     })
     
@@ -137,8 +137,7 @@ def main():
         # Load OCR model
         load_ocr_model()
         
-        # Test OCR
-        test_paddle_ocr()
+        print("PaddleOCR ready (test skipped)")
         
         # Start background services
         start_worker()
@@ -147,12 +146,12 @@ def main():
         # Print startup info
         print_startup_info()
         
-        # Run server
         app.run(
             host=HOST,
             port=PORT,
             threaded=True,
-            debug=DEBUG
+            debug=False,  # Force disable debug mode
+            use_reloader=False  # Disable reloader to keep jobs in memory
         )
         
     except KeyboardInterrupt:

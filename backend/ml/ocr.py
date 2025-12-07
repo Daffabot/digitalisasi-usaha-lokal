@@ -4,6 +4,7 @@ PaddleOCR Model and Processing Functions
 import logging
 import numpy as np
 from PIL import Image
+import os
 
 from config import (
     OCR_LANG, OCR_DEVICE, TEXT_DET_THRESH,
@@ -28,6 +29,10 @@ def load_ocr_model():
     
     print("Loading PaddleOCR model...")
     
+    os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
+    os.environ['OMP_NUM_THREADS'] = '1'
+    os.environ['MKL_NUM_THREADS'] = '1'
+    
     try:
         from paddleocr import PaddleOCR
         print("PaddleOCR imported successfully")
@@ -43,20 +48,17 @@ def load_ocr_model():
             text_det_thresh=0.3,
             text_det_box_thresh=0.5,
             text_recognition_batch_size=6,
-            enable_mkldnn=False,
-            use_mp=False,
         )
         print("PaddleOCR model loaded successfully")
         print(f"   - Language: {OCR_LANG}")
-        print(f"   - Device: {OCR_DEVICE}")
-        print(f"   - Textline Orientation: Enabled")
+        print(f"   - Device: CPU")
         
     except Exception as e:
         print(f"Failed to load PaddleOCR with full params: {str(e)}")
         print("Trying with minimal parameters...")
         
         try:
-            paddle_ocr = PaddleOCR(lang=OCR_LANG, device=OCR_DEVICE)
+            paddle_ocr = PaddleOCR(lang=OCR_LANG, use_gpu=False, show_log=False)
             print("PaddleOCR loaded with minimal parameters")
         except Exception as e2:
             print(f"Failed to load PaddleOCR: {str(e2)}")
@@ -115,16 +117,3 @@ def run_ocr_enhanced(image: Image.Image, options: dict = None):
     lang = options.get('lang', 'id')
     
     return run_ocr_paddleocr(image, detail=1, lang=lang)
-
-
-def test_paddle_ocr():
-    """Test PaddleOCR with a simple image"""
-    try:
-        print("Testing PaddleOCR with a blank image...")
-        test_image = Image.new('RGB', (100, 50), color='white')
-        result = run_ocr_paddleocr(test_image, detail=0)
-        print(f"Test successful. Result: '{result}'")
-        return True
-    except Exception as e:
-        print(f"Test failed: {str(e)}")
-        return False

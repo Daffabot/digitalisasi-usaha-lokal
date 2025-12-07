@@ -62,4 +62,8 @@ KOLOSAL_API_URL = "https://api.kolosal.ai/v1/chat/completions"
 KOLOSAL_MODEL = "meta-llama/llama-4-maverick-17b-128e-instruct"
 KOLOSAL_MAX_TOKENS = int(os.getenv("KOLOSAL_MAX_TOKENS", 1000))
 
+# Kolosal OCR API configuration
+KOLOSAL_OCR_API_KEY = os.getenv("KOLOSAL_OCR_API_KEY", "")
+KOLOSAL_OCR_API_URL = "https://api.kolosal.ai/ocr"
+
 DOWNLOAD_DIR = os.getenv("DOWNLOAD_DIR", "download")

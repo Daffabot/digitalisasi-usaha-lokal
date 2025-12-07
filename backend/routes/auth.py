@@ -2,14 +2,15 @@
 Authentication Routes
 """
 import re
-from flask import Blueprint, request, jsonify, make_response
+from flask import Blueprint, request, jsonify, make_response, g
 
 from config import JWT_REFRESH_TOKEN_EXPIRES
 from models import (
     create_user, get_user_by_username_or_email, get_user_by_id,
-    verify_password, verify_user_email, regenerate_verification_token
+    verify_password, verify_user_email, regenerate_verification_token,
+    update_user_full_name  # Add import
 )
-from middleware.auth import generate_token, decode_token
+from middleware.auth import generate_token, decode_token, jwt_required  # Add jwt_required import
 from services.email_service import send_verification_email
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
@@ -296,4 +297,47 @@ def resend_verification():
     return jsonify({
         "message": "Verification email sent",
         "email_sent": "error" not in email_result
+    })
+
+
+@auth_bp.route("/update-profile", methods=["PUT"])
+@jwt_required
+def update_profile():
+    """
+    Update user's full name
+    
+    Requires: JWT Authorization header
+    
+    Parameters:
+        full_name: New full name for the user
+    """
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({"error": "Request body is required"}), 400
+    
+    full_name = data.get("full_name", "").strip()
+    
+    if not full_name:
+        return jsonify({"error": "Full name is required"}), 400
+    
+    if len(full_name) < 2:
+        return jsonify({"error": "Full name must be at least 2 characters"}), 400
+    
+    # Get current user from jwt_required middleware
+    user = g.current_user
+    
+    result = update_user_full_name(user["id"], full_name)
+    
+    if "error" in result:
+        return jsonify({"error": result["error"]}), 400
+    
+    return jsonify({
+        "message": "Profile updated successfully",
+        "user": {
+            "id": user["id"],
+            "full_name": full_name,
+            "username": user["username"],
+            "email": user["email"]
+        }
     })
