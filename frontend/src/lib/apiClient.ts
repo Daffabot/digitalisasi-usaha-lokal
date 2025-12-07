@@ -3,7 +3,8 @@
 // Use Vite dev flag to route requests to the local dev proxy (`/api`) during development.
 // This covers localhost and other local dev hosts when running `npm run dev`.
 const isDev = typeof window !== "undefined" && !!((import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV);
-const BASE_URL = isDev ? "/api" : "https://ini-ocr-production.up.railway.app";
+const ENV_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const BASE_URL = isDev ? "/api" : ENV_BASE_URL;
 
 function getAccessToken(): string | null {
   return localStorage.getItem("access_token");
