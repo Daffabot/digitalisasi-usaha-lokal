@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: dulo-backend
+    ports:
+      - "8000:8000"
+    environment:
+      # Server Configuration
+      - HOST=0.0.0.0
+      - PORT=8000
+      - DEBUG=false
+      
+      # Database Configuration (SQLite by default)
+      - DATABASE_TYPE=sqlite
+      - DATABASE_PATH=database/database.db
+      
+      # JWT Configuration
+      - JWT_SECRET_KEY=your-super-secret-key-change-in-production
+      
+      # Email Configuration (optional)
+      - RESEND_API_KEY=
+      - EMAIL_FROM=noreply@yourdomain.com
+      - FRONTEND_URL=http://localhost:3000
+      
+      # Kolosal AI Configuration (optional)
+      - KOLOSAL_API_KEY=
+      - KOLOSAL_MAX_TOKENS=1000
+      
+      # Download Directory
+      - DOWNLOAD_DIR=download
+    volumes:
+      # Persist database
+      - ./data/database:/app/database
+      # Persist downloads
+      - ./data/download:/app/download
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - dulo-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: dulo-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - dulo-network
+
+networks:
+  dulo-network:
+    driver: bridge
+
+# Optional: PostgreSQL database (uncomment if needed)
+# services:
+#   postgres:
+#     image: postgres:15-alpine
+#     container_name: dulo-postgres
+#     environment:
+#       - POSTGRES_USER=postgres
+#       - POSTGRES_PASSWORD=your_postgres_password
+#       - POSTGRES_DB=dulo_db
+#     volumes:
+#       - postgres_data:/var/lib/postgresql/data
+#     ports:
+#       - "5432:5432"
+#     restart: unless-stopped
+#     networks:
+#       - dulo-network
+
+# volumes:
+#   postgres_data:
