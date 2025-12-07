@@ -8,6 +8,27 @@ import CuteSection from "../../components/ui/CuteSection";
 const ScanBooks: React.FC = () => {
   const navigate = useNavigate();
 
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const triggerFile = () => fileInputRef.current?.click();
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    try {
+      const { uploadOcr } = await import("../../services/ocrService");
+      const resp: any = await uploadOcr(f, "excel");
+      // navigate to result page with job_id
+      // @ts-ignore
+      window.history.pushState({}, "", `/scan/result?job_id=${encodeURIComponent(resp.job_id)}`);
+      // use location replace to avoid React navigation here (UploadResult reads from URL)
+      window.location.href = `/scan/result?job_id=${encodeURIComponent(resp.job_id)}`;
+    } catch (err: any) {
+      console.error(err);
+      alert(err?.message || "Upload failed");
+    }
+  };
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-4 mb-6">
@@ -29,9 +50,16 @@ const ScanBooks: React.FC = () => {
         <ScannerMock />
 
         <div className="w-full mt-8 grid grid-cols-2 gap-4">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFile}
+            className="hidden"
+          />
           <CuteButton
             variant="secondary"
-            onClick={() => navigate("/scan/result")}
+            onClick={triggerFile}
             className="flex flex-col gap-2 h-auto py-6"
           >
             <ImageIcon size={28} />

@@ -15,6 +15,7 @@ const CuteButton: React.FC<CuteButtonProps> = ({
   size = "md",
   fullWidth = false,
   children,
+  disabled,
   ...props
 }) => {
   const variants = {
@@ -37,15 +38,18 @@ const CuteButton: React.FC<CuteButtonProps> = ({
 
   return (
     <motion.button
-      whileHover={{ scale: 1.02, y: -2 }}
-      whileTap={{ scale: 0.95 }}
+      whileHover={disabled ? undefined : { scale: 1.02, y: -2 }}
+      whileTap={disabled ? undefined : { scale: 0.95 }}
       className={cn(
         "rounded-2xl font-yuruka tracking-wide transition-colors duration-200 flex items-center justify-center gap-2",
         variants[variant],
         sizes[size],
         fullWidth ? "w-full" : "w-auto",
+        disabled ? "opacity-60 cursor-not-allowed" : "",
         className
       )}
+      disabled={disabled}
+      aria-disabled={disabled}
       {...props}
     >
       {children}

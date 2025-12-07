@@ -6,11 +6,20 @@ import ChatBubble from "../../components/ui/ChatBubble";
 import CuteButton from "../../components/ui/CuteButton";
 import { cn } from "../../lib/utils";
 
+type ChatServiceMessage = {
+  content?: string;
+  message?: string;
+  role?: string;
+  timestamp?: string;
+  [key: string]: unknown;
+};
+
 const ChatAssistant = () => {
   const navigate = useNavigate();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [keyboardOffset, setKeyboardOffset] = useState(0); // px offset when virtual keyboard is visible
   const [messages, setMessages] = useState([
     {
       id: 1,
@@ -28,32 +37,162 @@ const ChatAssistant = () => {
     scrollToBottom();
   }, [messages]);
 
+  // Keep the input bar above the on-screen keyboard on mobile using visualViewport
+  useEffect(() => {
+    const onViewportChange = () => {
+      const win = window as unknown as { visualViewport?: VisualViewport };
+      const vv = win.visualViewport;
+      if (!vv) {
+        setKeyboardOffset(0);
+        return;
+      }
+      // approximate keyboard height: difference between layout viewport and visual viewport
+      const offset = Math.max(
+        0,
+        window.innerHeight - vv.height - (vv.offsetTop || 0)
+      );
+      setKeyboardOffset(offset);
+    };
+
+    const win = window as unknown as { visualViewport?: VisualViewport };
+    if (win.visualViewport) {
+      win.visualViewport.addEventListener("resize", onViewportChange);
+      win.visualViewport.addEventListener("scroll", onViewportChange);
+    }
+    window.addEventListener("resize", onViewportChange);
+
+    // initial check
+    setTimeout(onViewportChange, 50);
+
+    return () => {
+      const win = window as unknown as { visualViewport?: VisualViewport };
+      if (win.visualViewport) {
+        win.visualViewport.removeEventListener("resize", onViewportChange);
+        win.visualViewport.removeEventListener("scroll", onViewportChange);
+      }
+      window.removeEventListener("resize", onViewportChange);
+      setKeyboardOffset(0);
+    };
+  }, []);
+
   const handleSendMessage = () => {
     if (!inputValue.trim()) return;
-
+    const messageText = inputValue.trim();
     const newUserMsg = {
       id: Date.now(),
-      text: inputValue,
+      text: messageText,
       isAi: false,
       timestamp: "Just now",
     };
-
     setMessages((prev) => [...prev, newUserMsg]);
     setInputValue("");
     setIsTyping(true);
 
-    // Simulate AI delay
-    setTimeout(() => {
-      const newAiMsg = {
-        id: Date.now() + 1,
-        text: "I see! Based on the document, the total amount is $1,248.50 and the due date is March 25th, 2024. Would you like me to add this to your expense report?",
-        isAi: true,
-        timestamp: "Just now",
-      };
-      setMessages((prev) => [...prev, newAiMsg]);
-      setIsTyping(false);
-    }, 1500);
+    (async () => {
+      try {
+        // dynamically import service functions to avoid top-level import issues
+        const { postChat, getChat } = await import(
+          "../../services/chatService"
+        );
+        // get optional chat_id from query params if present
+        const params = new URLSearchParams(window.location.search);
+        const qChatId = params.get("chat_id");
+
+        const resp = await postChat(qChatId, messageText);
+
+        // After posting, refresh chat if there's a chat id, otherwise handle immediate reply
+        const chatIdToUse = resp?.chat_id || qChatId || null;
+        if (chatIdToUse) {
+          const chat = await getChat(chatIdToUse);
+          // Expect chat.messages or chat.data — normalize
+          const msgs = (chat?.messages || chat?.data || []).map(
+            (m: ChatServiceMessage, i: number) => ({
+              id: Date.now() + i + 1,
+              text: m.content || m.message || JSON.stringify(m),
+              isAi: (m.role ?? "assistant") !== "user",
+              timestamp: m.timestamp || "",
+            })
+          );
+          setMessages((prev) => [...prev, ...msgs]);
+        } else if (resp?.message) {
+          // some responses might return immediate reply
+          type ReplyItem =
+            | string
+            | { content?: string; role?: string; timestamp?: string };
+          const reply = Array.isArray(resp.message)
+            ? (resp.message as ReplyItem[])
+            : ([resp.message] as ReplyItem[]);
+          const msgs = reply.map((m: ReplyItem, i: number) => {
+            const content = typeof m === "string" ? m : m.content ?? "";
+            const role =
+              typeof m === "string" ? "assistant" : m.role ?? "assistant";
+            const timestamp = typeof m === "string" ? "" : m.timestamp ?? "";
+            return {
+              id: Date.now() + i + 1,
+              text: content,
+              isAi: role !== "user",
+              timestamp,
+            };
+          });
+          setMessages((prev) => [...prev, ...msgs]);
+        }
+      } catch (err: unknown) {
+        console.error(err);
+        if (err instanceof Error) {
+          alert(err.message || "Failed to send message");
+        } else {
+          alert(String(err) || "Failed to send message");
+        }
+      } finally {
+        try {
+          // refresh messages from the current chat if available
+          const { getChat } = await import("../../services/chatService");
+          const params = new URLSearchParams(window.location.search);
+          const qChatId = params.get("chat_id");
+          if (qChatId) {
+            const chat = await getChat(qChatId);
+            const msgs = (chat?.messages || chat?.data || []).map(
+              (m: ChatServiceMessage, i: number) => ({
+                id: Date.now() + i + 1,
+                text: m.content || m.message || JSON.stringify(m),
+                isAi: (m.role ?? "assistant") !== "user",
+                timestamp: m.timestamp || "",
+              })
+            );
+            setMessages(msgs.length ? msgs : []);
+          }
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setIsTyping(false);
+        }
+      }
+    })();
   };
+
+  // Load chat if chat_id provided in query params
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const qChatId = params.get("chat_id");
+    if (!qChatId) return;
+    (async () => {
+      try {
+        const { getChat } = await import("../../services/chatService");
+        const chat = await getChat(qChatId);
+        const msgs = (chat?.messages || chat?.data || []).map(
+          (m: ChatServiceMessage, i: number) => ({
+            id: i + Date.now(),
+            text: m.content || m.message || JSON.stringify(m),
+            isAi: m.role !== "user",
+            timestamp: m.timestamp || "",
+          })
+        );
+        setMessages(msgs.length ? msgs : []);
+      } catch (err) {
+        console.error(err);
+      }
+    })();
+  }, []);
 
   return (
     <div className="flex flex-col h-full bg-neutral-50 dark:bg-neutral-950 relative">
@@ -95,7 +234,10 @@ const ChatAssistant = () => {
       </div>
 
       {/* Chat Area */}
-      <div className="flex-1 overflow-y-auto p-4 pb-24">
+      <div
+        className="flex-1 overflow-y-auto p-4"
+        style={{ paddingBottom: `${keyboardOffset + 96}px` }}
+      >
         {messages.map((msg) => (
           <ChatBubble
             key={msg.id}
@@ -130,7 +272,10 @@ const ChatAssistant = () => {
       </div>
 
       {/* Input Area */}
-      <div className="absolute bottom-0 left-0 right-0 bg-white dark:bg-neutral-900 border-t border-neutral-100 dark:border-neutral-800 p-4 pb-safe">
+      <div
+        className="fixed left-0 right-0 bg-white dark:bg-neutral-900 border-t border-neutral-100 dark:border-neutral-800 p-4 pb-safe"
+        style={{ bottom: keyboardOffset, transition: "bottom 160ms ease" }}
+      >
         <div className="flex items-center gap-2 max-w-4xl mx-auto">
           <button className="p-2 text-neutral-400 hover:text-accentblue transition-colors">
             <Paperclip size={20} />

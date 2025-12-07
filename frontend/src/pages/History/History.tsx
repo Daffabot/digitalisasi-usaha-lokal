@@ -120,9 +120,9 @@ const History = () => {
                 key={type}
                 onClick={() => setFilterType(type)}
                 className={cn(
-                  "px-3 py-1.5 rounded-xl text-sm font-bold capitalize transition-all whitespace-nowrap",
+                  "px-3 py-1.5 rounded-xl text-sm font-bold capitalize transition-all whitespace-nowrap cursor-pointer",
                   filterType === type
-                    ? "bg-accentblue text-white"
+                    ? "bg-accentblue text-white border border-blue-300"
                     : "bg-white dark:bg-neutral-800 text-neutral-500 border border-b-4 border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50"
                 )}
               >
@@ -135,7 +135,7 @@ const History = () => {
             onClick={() =>
               setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"))
             }
-            className="p-2 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-accentblue transition-colors shrink-0"
+            className="p-2 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-accentblue transition-colors shrink-0 cursor-pointer"
           >
             <ArrowUpDown
               size={18}

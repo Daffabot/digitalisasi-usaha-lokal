@@ -1,12 +1,17 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { Loader2 } from "lucide-react";
+import { logout } from "../../services/authService";
 import { Home, ScanLine, Settings, FileText, LogOut } from "lucide-react";
 import { cn } from "../../lib/utils";
 
 const DesktopSidebar = () => {
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
   const navItems = [
     { icon: Home, label: "Home", path: "/home" },
-    { icon: ScanLine, label: "Scan Books", path: "/scan" },
-    { icon: FileText, label: "History", path: "/history" }, // Placeholder
+    { icon: ScanLine, label: "Scan", path: "/scan" },
+    { icon: FileText, label: "History", path: "/history" },
     { icon: Settings, label: "Settings", path: "/settings" },
   ];
 
@@ -21,7 +26,7 @@ const DesktopSidebar = () => {
             <h3 className="font-yuruka text-neutral-800 dark:text-white">
               DULO
             </h3>
-            <p className="text-xs text-neutral-500">Local Business</p>
+            <p className="text-xs text-neutral-500">Business Utility</p>
           </div>
         </div>
 
@@ -48,13 +53,28 @@ const DesktopSidebar = () => {
         </nav>
 
         <div className="mt-auto pt-6 border-t border-neutral-100 dark:border-neutral-800">
-          <NavLink
-            to="/"
-            className="flex items-center gap-4 px-4 py-3 rounded-2xl text-neutral-400 hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
+          <button
+            onClick={async () => {
+              try {
+                setLoading(true);
+                await logout();
+                navigate("/");
+              } catch (e) {
+                console.warn("Logout failed", e);
+              } finally {
+                setLoading(false);
+              }
+            }}
+            className="w-full flex items-center gap-4 px-4 py-3 rounded-2xl text-neutral-400 hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
+            disabled={loading}
           >
-            <LogOut size={20} />
+            {loading ? (
+              <Loader2 size={18} className="animate-spin" />
+            ) : (
+              <LogOut size={20} />
+            )}
             <span className="font-yuruka">Logout</span>
-          </NavLink>
+          </button>
         </div>
       </div>
     </aside>

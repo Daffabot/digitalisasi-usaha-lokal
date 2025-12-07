@@ -1,5 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import { getStoredUser } from "../../services/authService";
 import { UploadCloud, FileClock, ChevronRight, Plus } from "lucide-react";
 import CuteCard from "../../components/ui/CuteCard";
 import CuteButton from "../../components/ui/CuteButton";
@@ -14,13 +15,17 @@ const Home: React.FC = () => {
     { id: 3, name: "Receipt_Lunch.png", date: "2 days ago", size: "0.8 MB" },
   ];
 
+  const stored = getStoredUser();
+  const displayName =
+    (stored?.full_name ?? "user").trim().split(/\s+/)[0] || "user";
+
   return (
     <div className="flex flex-col gap-6">
       <CuteSection>
         <div className="flex justify-between items-end mb-6">
           <div>
             <h1 className="text-3xl font-yuruka text-neutral-900 dark:text-white mb-1">
-              Hello, Alex! 👋
+              Hello, {displayName}! 👋
             </h1>
             <p className="text-neutral-500 dark:text-neutral-400">
               Here is what's happening today.
@@ -75,7 +80,10 @@ const Home: React.FC = () => {
           <h2 className="text-xl font-yuruka text-neutral-800 dark:text-white">
             Recent Documents
           </h2>
-          <button className="text-accentblue text-sm font-bold hover:underline">
+          <button
+            className="text-accentblue text-sm font-bold hover:underline"
+            onClick={() => navigate("/history")}
+          >
             View All
           </button>
         </div>
