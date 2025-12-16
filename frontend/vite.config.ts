@@ -7,7 +7,7 @@ import { defineConfig } from "vite";
 // It forwards requests from /api/* to the remote OCR API and rewrites
 // Set-Cookie headers to work with localhost.
 // NOTE: This is for development only.
-const API_TARGET = "https://ini-ocr-production.up.railway.app";
+const API_TARGET = process.env.VITE_API_BASE_URL;
 
 export default defineConfig(() => ({
   plugins: [react(), tailwindcss()],
