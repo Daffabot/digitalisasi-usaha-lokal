@@ -11,59 +11,102 @@ function getAccessToken(): string | null {
 }
 
 function setAccessToken(token: string | null) {
-  if (token) localStorage.setItem("access_token", token);
-  else localStorage.removeItem("access_token");
+  if (token) {
+    localStorage.setItem("access_token", token);
+    // Store token timestamp for auto-refresh logic
+    localStorage.setItem("access_token_timestamp", Date.now().toString());
+  } else {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("access_token_timestamp");
+  }
 }
 
+// Mutex to prevent multiple simultaneous refresh attempts
+let refreshPromise: Promise<string | null> | null = null;
+
 async function refreshToken(): Promise<string | null> {
-  // refresh-token is stored in cookie by server; include credentials
-  const res = await fetch(`${BASE_URL}/auth/refresh`, {
-    method: "POST",
-    credentials: "include",
-    headers: { "content-type": "application/json" },
-  });
-  const text = await res.text().catch(() => "");
-  let parsed: Record<string, unknown> | null = null;
-  try {
-    parsed = text ? JSON.parse(text) : null;
-  } catch (e) {
-    if (isDev) console.debug("refreshToken: failed to parse response body as JSON", e);
-    parsed = null;
+  // If a refresh is already in progress, return the existing promise
+  if (refreshPromise) {
+    if (isDev) console.debug("refreshToken: reusing existing refresh promise");
+    return refreshPromise;
   }
 
-  if (!res.ok) {
-    const message = (parsed && (parsed.error || parsed.message)) || text || `Refresh failed (${res.status})`;
-    // clear local session on refresh failure
-    setAccessToken(null);
+  // Create new refresh promise
+  refreshPromise = (async () => {
     try {
-      localStorage.removeItem("current_user");
-    } catch (e) {
-      if (isDev) console.debug("refreshToken: failed to remove current_user", e);
-    }
-    if (isDev) console.debug("refreshToken failed", { status: res.status, message, body: text });
-    // throw so callers know refresh failed explicitly
-    throw new Error(String(message));
-  }
+      // refresh-token is stored in cookie by server; include credentials
+      const res = await fetch(`${BASE_URL}/auth/refresh`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+      });
+      const text = await res.text().catch(() => "");
+      let parsed: Record<string, unknown> | null = null;
+      try {
+        parsed = text ? JSON.parse(text) : null;
+      } catch (e) {
+        if (isDev) console.debug("refreshToken: failed to parse response body as JSON", e);
+        parsed = null;
+      }
 
-  const data = parsed || (text ? JSON.parse(text) : null) || {};
-  const token = data?.access_token || null;
-  setAccessToken(token);
-  return token;
+      if (!res.ok) {
+        const message = (parsed && (parsed.error || parsed.message)) || text || `Refresh failed (${res.status})`;
+        // clear local session on refresh failure
+        setAccessToken(null);
+        try {
+          localStorage.removeItem("current_user");
+        } catch (e) {
+          if (isDev) console.debug("refreshToken: failed to remove current_user", e);
+        }
+        if (isDev) console.debug("refreshToken failed", { status: res.status, message, body: text });
+        // throw so callers know refresh failed explicitly
+        throw new Error(String(message));
+      }
+
+      const data = parsed || (text ? JSON.parse(text) : null) || {};
+      const token = data?.access_token || null;
+      setAccessToken(token);
+      return token;
+    } finally {
+      // Clear the promise after completion (success or failure)
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
+
+// Check if token needs refresh (4 minutes since last refresh, giving 1 min buffer before 5 min expiry)
+function shouldRefreshToken(): boolean {
+  const timestamp = localStorage.getItem("access_token_timestamp");
+  if (!timestamp) return false;
+  const elapsed = Date.now() - parseInt(timestamp, 10);
+  const fourMinutes = 4 * 60 * 1000;
+  return elapsed >= fourMinutes;
 }
 
 type RequestOpts = RequestInit & { retry?: boolean };
 
 export async function apiRequest(path: string, opts: RequestOpts = {}) {
+  // Auto-refresh token if needed before making request
+  if (shouldRefreshToken() && getAccessToken()) {
+    try {
+      if (isDev) console.debug("apiRequest: auto-refreshing token before request");
+      await refreshToken();
+    } catch (e) {
+      if (isDev) console.debug("apiRequest: auto-refresh failed", e);
+      // Continue with request anyway, 401 handler will catch it
+    }
+  }
+
   const url = path.startsWith("http") ? path : `${BASE_URL}${path}`;
   const token = getAccessToken();
   const headers = new Headers(opts.headers || {});
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
   const options: RequestOpts = {
-    // Do not include credentials by default to avoid CORS errors when the backend
-    // does not allow cross-site credentials. Individual calls that require cookies
-    // can override with `opts.credentials: 'include'`.
-    credentials: (opts.credentials as RequestCredentials) ?? "omit",
+    // Include credentials by default to ensure cookies (refresh token) are sent
+    credentials: (opts.credentials as RequestCredentials) ?? "include",
     ...opts,
     headers,
   };
@@ -111,4 +154,4 @@ export async function apiRequest(path: string, opts: RequestOpts = {}) {
   return res;
 }
 
-export { BASE_URL, getAccessToken, setAccessToken, refreshToken };
+export { BASE_URL, getAccessToken, setAccessToken, refreshToken, shouldRefreshToken };

@@ -27,19 +27,53 @@ export default function CameraCapture({ fileType = "excel" }: Props) {
   const startCamera = async () => {
     try {
       setError(null);
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
-        audio: false,
-      });
+
+      let stream;
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { exact: "environment" } },
+          audio: false,
+        });
+      } catch {
+        // Fallback if environment camera unavailable
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false,
+        });
+      }
+
       streamRef.current = stream;
+      
+      // Set active first so video element is rendered
+      setActive(true);
+      
+      // Wait for next tick to ensure video element is in DOM
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        videoRef.current.muted = true;
+        videoRef.current.playsInline = true;
+
+        try {
+          await videoRef.current.play();
+        } catch (playErr) {
+          console.error("Play failed:", playErr);
+          // Retry play after a short delay
+          setTimeout(async () => {
+            try {
+              await videoRef.current?.play();
+            } catch (retryErr) {
+              console.error("Retry play failed:", retryErr);
+            }
+          }, 300);
+        }
       }
-      setActive(true);
     } catch (err) {
-      console.error("Camera start failed", err);
-      setError("Could not access camera. Check permissions.");
+      console.error("Camera init failed:", err);
+      setError("Camera access failed. Check device permission.");
+      setActive(false);
     }
   };
 
@@ -135,8 +169,11 @@ export default function CameraCapture({ fileType = "excel" }: Props) {
         <div className="w-full flex flex-col items-center gap-3">
           <video
             ref={videoRef}
-            className="w-full rounded-2xl bg-black"
+            autoPlay
+            muted
             playsInline
+            className="w-full rounded-2xl bg-black aspect-video"
+            style={{ objectFit: 'cover' }}
           />
           <div className="flex items-center gap-2">
             <CuteButton onClick={capture} className="px-4 py-2">

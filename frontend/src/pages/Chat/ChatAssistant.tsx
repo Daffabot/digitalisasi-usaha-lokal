@@ -153,7 +153,9 @@ const ChatAssistant = () => {
 
   // Load chat if chat_id provided in query params
   useEffect(() => {
-    (async () => {
+    let mounted = true;
+
+    const loadChat = async () => {
       setLoadingMessages(true);
       try {
         const params = new URLSearchParams(window.location.search);
@@ -164,6 +166,8 @@ const ChatAssistant = () => {
 
         // load chat history and pick latest if no chat_id provided
         const historyRaw = await getChatHistory();
+        if (!mounted) return;
+
         const asRecord =
           historyRaw && typeof historyRaw === "object"
             ? (historyRaw as Record<string, unknown>)
@@ -183,6 +187,8 @@ const ChatAssistant = () => {
 
         if (chatIdToLoad) {
           const chatResp = await getChat(chatIdToLoad);
+          if (!mounted) return;
+
           const c = chatResp?.chat || chatResp || null;
           if (c && c.title) setChatTitle(String(c.title));
           const msgsRaw = chatResp?.messages || chatResp?.data || [];
@@ -200,11 +206,26 @@ const ChatAssistant = () => {
         }
       } catch (err) {
         console.error(err);
-        setMessages([]);
+        if (!mounted) return;
+        
+        // Check if it's a 401 error - user will be redirected by RouteGuard
+        const error = err as { status?: number };
+        if (error.status === 401) {
+          console.debug("Unauthorized - token expired, route guard will handle redirect");
+        } else {
+          // For other errors, show empty messages
+          setMessages([]);
+        }
       } finally {
-        setLoadingMessages(false);
+        if (mounted) setLoadingMessages(false);
       }
-    })();
+    };
+
+    loadChat();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   return (

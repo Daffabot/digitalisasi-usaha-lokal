@@ -49,7 +49,7 @@ const Home: React.FC = () => {
 
   useEffect(() => {
     let mounted = true;
-    (async () => {
+    const loadChats = async () => {
       setLoading(true);
       try {
         const res = await getChatHistory();
@@ -64,11 +64,22 @@ const Home: React.FC = () => {
         setChats(items);
       } catch (err) {
         console.error("Failed to load recent chats", err);
-        setChats([]);
+        if (!mounted) return;
+        // Check if it's a 401 error - user will be redirected by RouteGuard
+        const error = err as { status?: number };
+        if (error.status === 401) {
+          // console.debug("Unauthorized - token expired, route guard will handle redirect");
+        } else {
+          // For other errors, show empty state
+          setChats([]);
+        }
       } finally {
         if (mounted) setLoading(false);
       }
-    })();
+    };
+    
+    loadChats();
+    
     return () => { mounted = false; };
   }, []);
 

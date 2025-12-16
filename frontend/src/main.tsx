@@ -2,9 +2,10 @@ import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
 import AppRoutes from "./routes/AppRoutes";
 import { ThemeProvider } from "./context/theme";
+import { AuthRefreshProvider } from "./context/AuthRefreshProvider";
 import { BrowserRouter } from "react-router-dom";
 import "./index.css";
-import { refreshToken } from "./lib/apiClient";
+import { refreshToken, getAccessToken } from "./lib/apiClient";
 
 export function AuthInit({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
@@ -13,11 +14,14 @@ export function AuthInit({ children }: { children: React.ReactNode }) {
     let mounted = true;
     (async () => {
       try {
-        await refreshToken();
+        // Only attempt refresh if user has an access token (was previously logged in)
+        if (getAccessToken()) {
+          await refreshToken();
+        }
       } catch (e) {
         // refresh failed: session cleared in refreshToken; continue to app as logged-out
         if (typeof e === "object" && e && (e as Error).message && window.console) {
-          console.debug("silent refresh failed:", (e as Error).message);
+          // console.debug("silent refresh failed:", (e as Error).message);
         }
       } finally {
         if (mounted) setReady(true);
@@ -37,7 +41,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <ThemeProvider defaultTheme="system" storageKey="dulo-theme">
       <BrowserRouter>
         <AuthInit>
-          <AppRoutes />
+          <AuthRefreshProvider>
+            <AppRoutes />
+          </AuthRefreshProvider>
         </AuthInit>
       </BrowserRouter>
     </ThemeProvider>

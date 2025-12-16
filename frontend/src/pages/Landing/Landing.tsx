@@ -9,7 +9,7 @@ const Landing: React.FC = () => {
 
   const scrollToLearnMore = () => {
     const el = document.getElementById("learn-more");
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (el) el.scrollIntoView({ behavior: "smooth", block: 'nearest', inline: 'start' });
   };
 
   return (
