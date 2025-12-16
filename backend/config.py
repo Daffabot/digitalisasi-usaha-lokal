@@ -67,3 +67,5 @@ KOLOSAL_OCR_API_KEY = os.getenv("KOLOSAL_OCR_API_KEY", "")
 KOLOSAL_OCR_API_URL = "https://api.kolosal.ai/ocr"
 
 DOWNLOAD_DIR = os.getenv("DOWNLOAD_DIR", "download")
+
+ORIGIN_URL = os.getenv("ORIGIN_URL", "http://localhost:3000,http://localhost:5173").split(",")

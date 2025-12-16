@@ -7,7 +7,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
 from config import (
-    HOST, PORT, DEBUG,
+    HOST, PORT, DEBUG, ORIGIN_URL,
     RATE_LIMIT_DEFAULT, RATE_LIMIT_BATCH, RATE_LIMIT_DIRECT
 )
 from routes import register_blueprints
@@ -76,7 +76,7 @@ def create_app():
     
     CORS(app, resources={
         r"/*": {
-            "origins": ["http://localhost:3000", "http://localhost:5173", "https://your-front-end.com"],
+            "origins": ORIGIN_URL,
             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
             "allow_headers": ["Content-Type", "Authorization"],
             "supports_credentials": True

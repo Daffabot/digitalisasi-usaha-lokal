@@ -171,8 +171,8 @@ def login():
         refresh_token,
         max_age=JWT_REFRESH_TOKEN_EXPIRES,
         httponly=True,
-        secure=False,  # Set to True in production with HTTPS
-        samesite="Lax"
+        secure=True,
+        samesite="none"
     )
     
     return response
@@ -225,13 +225,11 @@ def logout():
     }))
     
     # Clear refresh token cookie
-    response.set_cookie(
+    response.delete_cookie(
         "refresh_token",
-        "",
-        max_age=0,
         httponly=True,
-        secure=False,  # Set to True in production with HTTPS
-        samesite="Lax"
+        secure=True,
+        samesite="none"
     )
     
     return response

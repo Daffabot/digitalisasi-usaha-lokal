@@ -105,6 +105,14 @@ Make sure you have the following installed:
    # Database
    DATABASE_TYPE=sqlite
    DATABASE_PATH=database/database.db
+
+   # Database Configuration for PostgreSQL
+   POSTGRES_HOST=localhost
+   POSTGRES_PORT=5432
+   POSTGRES_USER=postgre
+   POSTGRES_PASSWORD=
+   POSTGRES_DB=ocr_db
+   POSTGRES_SSLMODE=require
    
    # JWT Secret (change this in production!)
    JWT_SECRET_KEY=your-super-secret-key-change-in-production
@@ -112,10 +120,18 @@ Make sure you have the following installed:
    # Email Configuration (optional)
    RESEND_API_KEY=your-resend-api-key
    EMAIL_FROM=noreply@yourdomain.com
+   FRONTEND_URL=http://localhost:5173
    
    # AI Configuration (optional)
    KOLOSAL_API_KEY=your-kolosal-api-key
    KOLOSAL_OCR_API_KEY=your-kolosal-api-key
+   KOLOSAL_MAX_TOKENS=1000
+
+   # Download Directory (for Docker volume)
+   DOWNLOAD_DIR=download
+
+   # CORS-allowed URLs (comma-separated)
+   ORIGIN_URL=http://localhost:3000,http://localhost:5173
    ```
 
 3. **Build and run with Docker Compose**
@@ -243,14 +259,23 @@ dulo/
 ### Authentication
 - `POST /auth/register` - Register new user
 - `POST /auth/login` - Login and get JWT token
-- `GET /auth/verify-email` - Verify email address
+- `POST /auth/refresh` - Refresh JWT access token
+- `POST /auth/logout` - Logout and delete cookies
+- `GET /auth/verif-email` - Verify email address
 - `POST /auth/resend-verification` - Resend verification email
+- `PUT /auth/update-profile` - Update fullname user (Protected - Requires JWT)
 
 ### OCR (Protected - Requires JWT)
 - `POST /ocr` - Single image OCR with queue
 - `POST /ocr/batch` - Batch image OCR with queue
-- `GET /take/<job_id>` - Get job results
+- `GET /take/<job_id>` - Get queue status and download link
+- `GET /download/<filename>` - Download file by filename
 - `POST /ocr/direct` - Direct OCR (no queue)
+
+### Chat AI (Protected - Requires JWT)
+- `POST /chat` - Chat with an AI that knows the context of the data in the photo
+- `GET /chat/history` - Get all chats for current user
+- `GET /chat/<chat_id>` - Get chat details and messages
 
 ### Public
 - `GET /health` - Health check
@@ -283,7 +308,11 @@ Authorization: Bearer <your-jwt-token>
 | `RESEND_API_KEY` | Resend API key for emails | Optional |
 | `EMAIL_FROM` | Sender email address | Optional |
 | `KOLOSAL_API_KEY` | Kolosal AI API key | Optional |
+| `KOLOSAL_OCR_API_KEY` | Kolosal AI OCR API key | Optional |
+| `KOLOSAL_MAX_TOKENS` | Kolosal AI max tokens | Optional |
 | `FRONTEND_URL` | Frontend URL for email links | `http://localhost:3000` |
+| `DOWNLOAD_DIR` | Download file directory | `download` |
+| `ORIGIN_URL` | CORS-allowed URLs (comma-separated)  | `http://localhost:3000,http://localhost:5173` |
 
 ---
 
@@ -360,12 +389,11 @@ For support, please open an issue in the GitHub repository or contact the mainta
 
 ## 🎯 Roadmap
 
-- [ ] Multi-language OCR support
-- [ ] Mobile application (iOS/Android)
-- [ ] Real-time collaboration features
+- [✔] Multi-language OCR support
+- [✔] Receipt scanning from mobile camera
+- [ ] Add another support tools
+- [ ] Add object storage and file management
 - [ ] Advanced AI analytics dashboard
-- [ ] Integration with accounting software
-- [ ] Receipt scanning from mobile camera
 
 ---
 

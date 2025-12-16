@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: paddleocr-api
+    ports:
+      - "8000:8000"
+    environment:
+      # Server Configuration
+      - HOST=0.0.0.0
+      - PORT=8000
+      - DEBUG=false
+      
+      # Database Configuration (SQLite by default)
+      - DATABASE_TYPE=sqlite
+      - DATABASE_PATH=database/database.db
+      
+      # JWT Configuration
+      - JWT_SECRET_KEY=your-super-secret-key-change-in-production
+      
+      # Email Configuration (optional)
+      - RESEND_API_KEY=
+      - EMAIL_FROM=noreply@yourdomain.com
+      - FRONTEND_URL=http://localhost:3000
+      
+      # Kolosal AI Configuration (optional)
+      - KOLOSAL_API_KEY=
+      - KOLOSAL_MAX_TOKENS=1000
+      
+      # Download Directory
+      - DOWNLOAD_DIR=download
+    volumes:
+      # Persist database
+      - ./data/database:/app/database
+      # Persist downloads
+      - ./data/download:/app/download
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # PostgreSQL (optional - uncomment if you want to use PostgreSQL)
+  # postgres:
+  #   image: postgres:15-alpine
+  #   container_name: paddleocr-postgres
+  #   environment:
+  #     - POSTGRES_USER=postgres
+  #     - POSTGRES_PASSWORD=your_postgres_password
+  #     - POSTGRES_DB=excel_pdf_db
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   ports:
+  #     - "5432:5432"
+  #   restart: unless-stopped
+
+# Uncomment if using PostgreSQL
+# volumes:
+#   postgres_data:
